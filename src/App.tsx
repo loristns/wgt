@@ -7,6 +7,7 @@ import {
   VariableMode,
 } from './lib';
 import {MatmulOp} from './lib/ops/matmul';
+import {AddOp} from './lib/ops/add';
 
 async function run() {
   await GPUDeviceSingleton.initialize();
@@ -48,15 +49,22 @@ async function run() {
   const matmul2 = new MatmulOp(matmul.outputShape, matmul.outputShape);
   const [resultVariable2] = matmul2.createOutputVariables();
 
-  const [readResultVariable] = matmul2.createOutputVariables(
-    VariableMode.READABLE
-  );
+  const add = new AddOp(matmul2.outputShape);
+  const [resultVariable3] = add.createOutputVariables();
+
+  const [readResultVariable] = add.createOutputVariables(VariableMode.READABLE);
 
   console.time('matmul_2d');
 
-  runCommands([
-    matmul.createCommand(aVariable, bVariable, resultVariable),
-    matmul2.createCommand(resultVariable, resultVariable, resultVariable2),
+  await runCommands([
+    ...matmul.getCommands(aVariable, bVariable, resultVariable),
+    ...matmul2.getCommands(resultVariable, resultVariable, resultVariable2),
+    ...add.getCommands(resultVariable, resultVariable2, resultVariable3),
+    {
+      type: OpCommandType.COPY_VARIABLE,
+      src: resultVariable3,
+      dst: resultVariable2,
+    },
     {
       type: OpCommandType.COPY_VARIABLE,
       src: resultVariable2,

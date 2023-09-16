@@ -177,10 +177,10 @@ export interface Op {
   pipeline: GPUComputePipeline;
 
   createOutputVariables(mode?: VariableMode): Variable[];
-  createCommand(...args: unknown[]): OpCommand;
+  getCommands(...args: unknown[]): OpCommand[];
 }
 
-export function runCommands(commands: OpCommand[]) {
+export async function runCommands(commands: OpCommand[]) {
   const device = GPUDeviceSingleton.getDevice();
   const encoder = device.createCommandEncoder();
 
@@ -227,4 +227,5 @@ export function runCommands(commands: OpCommand[]) {
   const commandsBuffer = encoder.finish();
 
   device.queue.submit([commandsBuffer]);
+  await device.queue.onSubmittedWorkDone();
 }

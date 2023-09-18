@@ -37,7 +37,7 @@ export class AddOp implements Op {
     }
   `;
 
-  pipeline: GPUComputePipeline;
+  pipeline: Record<string, GPUComputePipeline>;
 
   shape: TensorShape;
 
@@ -48,15 +48,17 @@ export class AddOp implements Op {
   constructor(shape: TensorShape) {
     const device = GPUDeviceSingleton.getDevice();
 
-    this.pipeline = device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({
-          code: AddOp.WGSL_CODE,
-        }),
-        entryPoint: 'main',
-      },
-    });
+    this.pipeline = {
+      main: device.createComputePipeline({
+        layout: 'auto',
+        compute: {
+          module: device.createShaderModule({
+            code: AddOp.WGSL_CODE,
+          }),
+          entryPoint: 'main',
+        },
+      }),
+    };
 
     this.shape = shape;
   }
@@ -79,6 +81,7 @@ export class AddOp implements Op {
       {
         type: OpCommandType.EXECUTE_OP,
         op: this,
+        pipeline: 'main',
         variables: [input1, input2, output],
         workgroups: [this.shape.batches, this.shape.rows, this.shape.cols],
       },

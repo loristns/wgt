@@ -43,7 +43,7 @@ export class MatmulOp implements Op {
     }
   `;
 
-  pipeline: GPUComputePipeline;
+  pipeline: Record<string, GPUComputePipeline>;
 
   aShape: TensorShape;
   bShape: TensorShape;
@@ -59,15 +59,17 @@ export class MatmulOp implements Op {
   constructor(aShape: TensorShape, bShape: TensorShape) {
     const device = GPUDeviceSingleton.getDevice();
 
-    this.pipeline = device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({
-          code: MatmulOp.WGSL_CODE,
-        }),
-        entryPoint: 'main',
-      },
-    });
+    this.pipeline = {
+      main: device.createComputePipeline({
+        layout: 'auto',
+        compute: {
+          module: device.createShaderModule({
+            code: MatmulOp.WGSL_CODE,
+          }),
+          entryPoint: 'main',
+        },
+      }),
+    };
 
     this.aShape = aShape;
     this.bShape = bShape;
@@ -91,6 +93,7 @@ export class MatmulOp implements Op {
       {
         type: OpCommandType.EXECUTE_OP,
         op: this,
+        pipeline: 'main',
         variables: [input1, input2, output],
         workgroups: [this.aShape.batches, this.aShape.rows, this.bShape.cols],
       },

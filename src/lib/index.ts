@@ -164,6 +164,7 @@ export type OpCommand =
   | {
       type: OpCommandType.EXECUTE_OP;
       op: Op;
+      pipeline: string;
       variables: Variable[];
       workgroups: [number, number?, number?];
     }
@@ -174,7 +175,7 @@ export type OpCommand =
     };
 
 export interface Op {
-  pipeline: GPUComputePipeline;
+  pipeline: Record<string, GPUComputePipeline>;
 
   createOutputVariables(mode?: VariableMode): Variable[];
   getCommands(...args: unknown[]): OpCommand[];
@@ -187,10 +188,11 @@ export async function runCommands(commands: OpCommand[]) {
   for (const command of commands) {
     switch (command.type) {
       case OpCommandType.EXECUTE_OP: {
-        const {op, variables, workgroups} = command;
+        const {op, pipeline: pipelineName, variables, workgroups} = command;
+        const pipeline = op.pipeline[pipelineName];
 
         const bindGroup = device.createBindGroup({
-          layout: op.pipeline.getBindGroupLayout(0),
+          layout: pipeline.getBindGroupLayout(0),
           entries: variables.map((variable, i) => ({
             binding: i,
             resource: {
@@ -200,7 +202,7 @@ export async function runCommands(commands: OpCommand[]) {
         });
 
         const pass = encoder.beginComputePass();
-        pass.setPipeline(op.pipeline);
+        pass.setPipeline(pipeline);
         pass.setBindGroup(0, bindGroup);
         pass.dispatchWorkgroups(...workgroups);
         pass.end();

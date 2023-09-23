@@ -1,10 +1,15 @@
-export class GPUDeviceSingleton {
-  private static device: GPUDevice;
-  private static limits: GPUSupportedLimits;
+import {Tensor} from './tensor';
+import {Op} from './ops';
 
-  private constructor() {}
+/**
+ * The WGT class is the main class of the WGT library.
+ *
+ * It is used to create and execute operations on the GPU.
+ */
+export class WGT {
+  static device: GPUDevice;
 
-  static async initialize() {
+  static async initializeGpu() {
     const adapter = await navigator.gpu?.requestAdapter();
     const device = await adapter?.requestDevice();
 
@@ -12,222 +17,74 @@ export class GPUDeviceSingleton {
       throw new Error('WebGPU not supported');
     }
 
-    GPUDeviceSingleton.device = device;
-    GPUDeviceSingleton.limits = device.limits;
+    WGT.device = device;
   }
 
-  static getDevice() {
-    if (!GPUDeviceSingleton.device) {
-      throw new Error('GPU Device not initialized');
-    }
+  static async run(outputOps: Op[]) {
+    let commands = outputOps.flatMap(op => op.getCommands());
 
-    return GPUDeviceSingleton.device;
-  }
-
-  static getLimits() {
-    if (!GPUDeviceSingleton.limits) {
-      throw new Error('GPU Device not initialized');
-    }
-
-    return GPUDeviceSingleton.limits;
-  }
-}
-
-export type TensorShape = {
-  batches: number;
-  rows: number;
-  cols: number;
-};
-
-/**
- * 3D tensor type.
- */
-export class Tensor {
-  static WGSL_TYPE = /* wgsl */ `
-    struct Tensor {
-      batches: u32,
-      rows: u32,
-      cols: u32,
-      matrix: array<f32>,
-    }
-  `;
-
-  arrayBuffer: ArrayBuffer;
-
-  rawData: Uint32Array;
-  rawMatrix: Float32Array;
-  rawShape: Uint32Array;
-
-  constructor(arrayBuffer: ArrayBuffer) {
-    this.arrayBuffer = arrayBuffer;
-
-    this.rawData = new Uint32Array(this.arrayBuffer);
-    this.rawMatrix = new Float32Array(this.arrayBuffer, 3 * 4);
-    this.rawShape = new Uint32Array(this.arrayBuffer, 0, 3);
-  }
-
-  get shape(): TensorShape {
-    return {
-      batches: this.rawShape[0],
-      rows: this.rawShape[1],
-      cols: this.rawShape[2],
-    };
-  }
-
-  get data(): number[][][] {
-    const {batches, rows, cols} = this.shape;
-
-    const data: number[][][] = [];
-
-    for (let i = 0; i < batches; i++) {
-      data.push([]);
-
-      for (let j = 0; j < rows; j++) {
-        data[i].push([]);
-
-        for (let k = 0; k < cols; k++) {
-          data[i][j].push(this.rawMatrix[i * rows * cols + j * cols + k]);
-        }
-      }
-    }
-
-    return data;
-  }
-
-  static fromArray(array: number[][][]): Tensor {
-    const [batches, rows, cols] = [
-      array.length,
-      array[0].length,
-      array[0][0].length,
-    ];
-
-    const arrayBuffer = new ArrayBuffer(batches * rows * cols * 4 + 3 * 4);
-    const rawData = new Uint32Array(arrayBuffer);
-    const rawMatrix = new Float32Array(arrayBuffer, 3 * 4);
-
-    rawData.set([batches, rows, cols], 0);
-    rawMatrix.set(array.flat(2), 0);
-
-    return new Tensor(rawData);
-  }
-}
-
-/**
- * A simplified version of GPUBufferUsage.
- */
-export enum VariableMode {
-  GPU,
-  READABLE,
-}
-
-/**
- * A tiny wrapper around GPUBuffer.
- */
-export class Variable {
-  buffer: GPUBuffer;
-
-  constructor(byteLength: number, mode: VariableMode = VariableMode.GPU) {
-    this.buffer = GPUDeviceSingleton.getDevice().createBuffer({
-      size: byteLength,
-      usage:
-        mode === VariableMode.GPU
-          ? GPUBufferUsage.STORAGE |
-            GPUBufferUsage.COPY_SRC |
-            GPUBufferUsage.COPY_DST
-          : GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    // Filter out duplicate commands, eg:
+    //  input1 --> op1 --> op2 --> output1
+    //  input2 -|      |-> op3 --> output2
+    //  Command would be [input1, input2, op1, op2, input1, input2, op1, op3]
+    //  After filtering: [input1, input2, op1, op2, op3]
+    commands = commands.filter((command, index) => {
+      const firstCommandIndex = commands.findIndex(
+        otherCommand =>
+          command.pipeline === otherCommand.pipeline &&
+          command.params.every((param, i) => param === otherCommand.params[i])
+      );
+      return index === firstCommandIndex;
     });
-  }
 
-  write(data: ArrayBuffer) {
-    GPUDeviceSingleton.getDevice().queue.writeBuffer(this.buffer, 0, data);
-  }
+    const encoder = WGT.device.createCommandEncoder();
 
-  async read() {
-    await this.buffer.mapAsync(GPUMapMode.READ);
-    return this.buffer.getMappedRange();
-  }
+    commands.forEach(command => {
+      const bindGroup = WGT.device.createBindGroup({
+        layout: command.pipeline.getBindGroupLayout(0),
+        entries: command.params.map((param, i) => ({
+          binding: i,
+          resource: {
+            buffer: param,
+          },
+        })),
+      });
 
-  dispose() {
-    this.buffer.destroy();
-  }
-}
+      const pass = encoder.beginComputePass();
 
-/**
- * Type of the command to be executed on the GPU.
- */
-export enum OpCommandType {
-  EXECUTE_OP,
-  COPY_VARIABLE,
-}
+      pass.setPipeline(command.pipeline);
+      pass.setBindGroup(0, bindGroup);
+      pass.dispatchWorkgroups(...command.workgroups);
+      pass.end();
+    });
 
-export type OpCommand =
-  | {
-      type: OpCommandType.EXECUTE_OP;
-      op: Op;
-      pipeline: string;
-      variables: Variable[];
-      workgroups: [number, number?, number?];
-    }
-  | {
-      type: OpCommandType.COPY_VARIABLE;
-      src: Variable;
-      dst: Variable;
-    };
+    // Copy all output variables to the CPU
+    outputOps.forEach(op => {
+      encoder.copyBufferToBuffer(
+        op.buffer,
+        0,
+        op.readableBuffer,
+        0,
+        op.shape.size
+      );
+    });
 
-export interface Op {
-  pipeline: Record<string, GPUComputePipeline>;
+    const commandBuffer = encoder.finish();
+    WGT.device.queue.submit([commandBuffer]);
 
-  createOutputVariables(mode?: VariableMode): Variable[];
-  getCommands(...args: unknown[]): OpCommand[];
-}
+    return Promise.all(
+      outputOps.map(async op => {
+        await op.readableBuffer.mapAsync(GPUMapMode.READ);
 
-export async function runCommands(commands: OpCommand[]) {
-  const device = GPUDeviceSingleton.getDevice();
-  const encoder = device.createCommandEncoder();
-
-  for (const command of commands) {
-    switch (command.type) {
-      case OpCommandType.EXECUTE_OP: {
-        const {op, pipeline: pipelineName, variables, workgroups} = command;
-        const pipeline = op.pipeline[pipelineName];
-
-        const bindGroup = device.createBindGroup({
-          layout: pipeline.getBindGroupLayout(0),
-          entries: variables.map((variable, i) => ({
-            binding: i,
-            resource: {
-              buffer: variable.buffer,
-            },
-          })),
-        });
-
-        const pass = encoder.beginComputePass();
-        pass.setPipeline(pipeline);
-        pass.setBindGroup(0, bindGroup);
-        pass.dispatchWorkgroups(...workgroups);
-        pass.end();
-
-        break;
-      }
-
-      case OpCommandType.COPY_VARIABLE: {
-        const {src, dst} = command;
-
-        encoder.copyBufferToBuffer(
-          src.buffer,
-          0,
-          dst.buffer,
-          0,
-          src.buffer.size
+        const arrayBuffer = new ArrayBuffer(op.shape.size);
+        new Uint8Array(arrayBuffer).set(
+          new Uint8Array(op.readableBuffer.getMappedRange())
         );
 
-        break;
-      }
-    }
+        op.readableBuffer.unmap();
+
+        return new Tensor(arrayBuffer);
+      })
+    );
   }
-
-  const commandsBuffer = encoder.finish();
-
-  device.queue.submit([commandsBuffer]);
-  await device.queue.onSubmittedWorkDone();
 }

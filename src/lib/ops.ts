@@ -159,3 +159,74 @@ export class Matmul extends Op {
     ];
   }
 }
+
+export class Softmax extends Op {
+  pipeline: GPUComputePipeline;
+
+  constructor(input: Op) {
+    const shape = input.shape;
+    super(shape, [input]);
+
+    this.pipeline = WGT.device.createComputePipeline({
+      layout: 'auto',
+      compute: {
+        module: WGT.device.createShaderModule({
+          code: /* wgsl */ `
+            ${WGSL_TENSOR_TYPE}
+      
+            // Input
+            @group(0) @binding(0) var<storage, read> input: Tensor;
+            
+            // Output
+            @group(0) @binding(1) var<storage, read_write> result: Tensor;
+           
+            @compute @workgroup_size(1) fn main(
+              @builtin(global_invocation_id) id: vec3<u32>
+            ) {
+              result.batches = input.batches;
+              result.rows = input.rows;
+              result.cols = input.cols;
+              
+              let batch = id.x;
+              let row = id.y;
+              let col = id.z;
+
+              let rowOffset = batch * input.rows * input.cols + row * input.cols;
+         
+              // Get the max value in the row (across all columns)
+              var rowMax: f32 = 0.0;
+              for (var i = 0u; i < input.cols; i = i + 1u) {
+                rowMax = max(rowMax, input.matrix[rowOffset + i]);
+              }
+
+              var unnormalizedSoftmax: f32 = exp(
+                input.matrix[rowOffset + col] - rowMax
+              );
+
+              // Compute the sum of all unnormalized softmax values in the row
+              var sum: f32 = 0.0;
+
+              for (var i = 0u; i < input.cols; i = i + 1u) {
+                sum = sum + exp(input.matrix[rowOffset + i] - rowMax);
+              }
+
+              result.matrix[rowOffset + col] = unnormalizedSoftmax / sum;
+            }
+          `,
+        }),
+        entryPoint: 'main',
+      },
+    });
+  }
+
+  getCommands(): OpCommand[] {
+    return [
+      ...super.getCommands(),
+      {
+        pipeline: this.pipeline,
+        params: [this.dependencies[0].buffer, this.buffer],
+        workgroups: [this.shape.batches, this.shape.rows, this.shape.cols],
+      },
+    ];
+  }
+}

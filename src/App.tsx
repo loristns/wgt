@@ -1,6 +1,6 @@
 import {WGT} from './lib';
 import {Tensor} from './lib/tensor';
-import {Input, Matmul, Softmax} from './lib/ops';
+import {Gelu, Input, Matmul, Softmax} from './lib/ops';
 
 async function run() {
   await WGT.initializeGpu();
@@ -13,6 +13,7 @@ async function run() {
   const matmul2 = new Matmul(matmul, matmul);
 
   const softmax = new Softmax(matmul);
+  const gelu = new Gelu(matmul);
 
   // Input data
   const a = Tensor.fromArray(
@@ -21,7 +22,7 @@ async function run() {
       .map(() =>
         Array(1024)
           .fill(1)
-          .map(() => Math.random())
+          .map(() => Math.random() * 0.001)
       )
   );
 
@@ -31,21 +32,21 @@ async function run() {
       .map(() =>
         Array(1024)
           .fill(1)
-          .map(() => Math.random())
+          .map(() => Math.random() * 0.1)
       )
   );
 
   // Run
-  console.time('matmul_2d');
-
   input1.write(a);
   input2.write(b);
 
-  const [output1, output2] = await WGT.run([matmul, softmax]);
-
+  console.time('matmul_2d');
+  const [output1, output2, output3] = await WGT.run([matmul, softmax, gelu]);
   console.timeEnd('matmul_2d');
+
   console.log(output1.data);
   console.log(output2.data);
+  console.log(output3.data);
 
   // Cleanup
   input1.clean();
@@ -53,6 +54,7 @@ async function run() {
   matmul.clean();
   matmul2.clean();
   softmax.clean();
+  gelu.clean();
 }
 
 function App() {

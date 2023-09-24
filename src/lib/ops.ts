@@ -72,16 +72,12 @@ export abstract class Op {
  */
 export class Input extends Op {
   constructor(shape: TensorShape);
-  constructor(batches: number, rows: number, cols: number);
-  constructor(
-    shapeOrBatches: TensorShape | number,
-    rows?: number,
-    cols?: number
-  ) {
+  constructor(rows: number, cols: number);
+  constructor(shapeOrRows: TensorShape | number, cols?: number) {
     const shape =
-      typeof shapeOrBatches === 'number'
-        ? new TensorShape(shapeOrBatches, rows!, cols!)
-        : shapeOrBatches;
+      typeof shapeOrRows === 'number'
+        ? new TensorShape(shapeOrRows, cols!)
+        : shapeOrRows;
 
     // The input operation has no dependencies so we pass an empty array.
     super(shape, []);
@@ -99,7 +95,7 @@ export class Matmul extends Op {
   pipeline: GPUComputePipeline;
 
   constructor(a: Op, b: Op) {
-    const shape = new TensorShape(a.shape.batches, a.shape.rows, b.shape.cols);
+    const shape = new TensorShape(a.shape.rows, b.shape.cols);
     super(shape, [a, b]);
 
     this.pipeline = WGT.device.createComputePipeline({
@@ -119,23 +115,21 @@ export class Matmul extends Op {
             @compute @workgroup_size(64) fn main(
               @builtin(global_invocation_id) id: vec3<u32>
             ) {
-              result.batches = a.batches;
               result.rows = a.rows;
               result.cols = b.cols;
               
-              let batch = id.x;
-              let row = id.y;
-              let col = id.z;
+              let row = id.x;
+              let col = id.y;
          
               var value: f32 = 0.0;
             
               for (var i = 0u; i < a.cols; i = i + 1u) {
                 value = value \
-                  + a.matrix[batch * a.rows * a.cols + row * a.cols + i] \
-                  * b.matrix[batch * b.rows * b.cols + i * b.cols + col];
+                  + a.matrix[row * a.cols + i] \
+                  * b.matrix[i * b.cols + col];
               }
             
-              result.matrix[batch * result.rows * result.cols + row * result.cols + col] = value;
+              result.matrix[row * result.cols + col] = value;
             }
           `,
         }),
@@ -154,7 +148,7 @@ export class Matmul extends Op {
           this.dependencies[1].buffer,
           this.buffer,
         ],
-        workgroups: [this.shape.batches, this.shape.rows, this.shape.cols],
+        workgroups: [this.shape.rows, this.shape.cols],
       },
     ];
   }
@@ -183,15 +177,13 @@ export class Softmax extends Op {
             @compute @workgroup_size(1) fn main(
               @builtin(global_invocation_id) id: vec3<u32>
             ) {
-              result.batches = input.batches;
               result.rows = input.rows;
               result.cols = input.cols;
               
-              let batch = id.x;
-              let row = id.y;
-              let col = id.z;
+              let row = id.x;
+              let col = id.y;
 
-              let rowOffset = batch * input.rows * input.cols + row * input.cols;
+              let rowOffset = row * input.cols;
          
               // Get the max value in the row (across all columns)
               var rowMax: f32 = 0.0;
@@ -225,7 +217,7 @@ export class Softmax extends Op {
       {
         pipeline: this.pipeline,
         params: [this.dependencies[0].buffer, this.buffer],
-        workgroups: [this.shape.batches, this.shape.rows, this.shape.cols],
+        workgroups: [this.shape.rows, this.shape.cols, 1],
       },
     ];
   }

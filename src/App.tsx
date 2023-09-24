@@ -1,31 +1,29 @@
 import {WGT} from './lib';
 import {Tensor} from './lib/tensor';
-import {Input, Matmul} from './lib/ops';
+import {Input, Matmul, Softmax} from './lib/ops';
 
 async function run() {
   await WGT.initializeGpu();
 
   // Compute graph
   // (input1 @ input2) @ (input1 @ input2)
-  const input1 = new Input(1, 2, 3);
-  const input2 = new Input(1, 3, 2);
+  const input1 = new Input(2, 3);
+  const input2 = new Input(3, 2);
   const matmul = new Matmul(input1, input2);
   const matmul2 = new Matmul(matmul, matmul);
 
+  const softmax = new Softmax(matmul);
+
   // Input data
   const a = Tensor.fromArray([
-    [
-      [1, 2, 3],
-      [4, 5, 6],
-    ],
+    [1, 2, 3],
+    [4, 5, 6],
   ]);
 
   const b = Tensor.fromArray([
-    [
-      [7, 8],
-      [9, 10],
-      [11, 12],
-    ],
+    [7, 8],
+    [9, 10],
+    [11, 12],
   ]);
 
   // Run
@@ -34,7 +32,7 @@ async function run() {
   input1.write(a);
   input2.write(b);
 
-  const [output1, output2] = await WGT.run([matmul, matmul2]);
+  const [output1, output2] = await WGT.run([matmul, softmax]);
 
   console.timeEnd('matmul_2d');
   console.log(output1.data);
@@ -45,6 +43,7 @@ async function run() {
   input2.clean();
   matmul.clean();
   matmul2.clean();
+  softmax.clean();
 }
 
 function App() {

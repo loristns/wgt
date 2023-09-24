@@ -7,24 +7,33 @@ async function run() {
 
   // Compute graph
   // (input1 @ input2) @ (input1 @ input2)
-  const input1 = new Input(2, 3);
-  const input2 = new Input(3, 2);
+  const input1 = new Input(1024, 1024);
+  const input2 = new Input(1024, 1024);
   const matmul = new Matmul(input1, input2);
   const matmul2 = new Matmul(matmul, matmul);
 
   const softmax = new Softmax(matmul);
 
   // Input data
-  const a = Tensor.fromArray([
-    [1, 2, 3],
-    [4, 5, 6],
-  ]);
+  const a = Tensor.fromArray(
+    Array(1024)
+      .fill(1)
+      .map(() =>
+        Array(1024)
+          .fill(1)
+          .map(() => Math.random())
+      )
+  );
 
-  const b = Tensor.fromArray([
-    [7, 8],
-    [9, 10],
-    [11, 12],
-  ]);
+  const b = Tensor.fromArray(
+    Array(1024)
+      .fill(1)
+      .map(() =>
+        Array(1024)
+          .fill(1)
+          .map(() => Math.random())
+      )
+  );
 
   // Run
   console.time('matmul_2d');

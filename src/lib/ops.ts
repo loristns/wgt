@@ -123,10 +123,8 @@ export class Matmul extends Op {
          
               var value: f32 = 0.0;
             
-              for (var i = 0u; i < a.cols; i = i + 1u) {
-                value = value \
-                  + a.matrix[row * a.cols + i] \
-                  * b.matrix[i * b.cols + col];
+              for (var i = 0u; i < a.cols; i += 1u) {
+                value += a.matrix[row * a.cols + i] * b.matrix[i * b.cols + col];
               }
             
               result.matrix[row * result.cols + col] = value;
@@ -174,35 +172,37 @@ export class Softmax extends Op {
             // Output
             @group(0) @binding(1) var<storage, read_write> result: Tensor;
            
-            @compute @workgroup_size(1) fn main(
-              @builtin(global_invocation_id) id: vec3<u32>
+            @compute @workgroup_size(64) fn main(
+              @builtin(global_invocation_id) id: vec3<u32>,
             ) {
               result.rows = input.rows;
               result.cols = input.cols;
               
               let row = id.x;
-              let col = id.y;
-
               let rowOffset = row * input.cols;
          
               // Get the max value in the row (across all columns)
-              var rowMax: f32 = 0.0;
-              for (var i = 0u; i < input.cols; i = i + 1u) {
-                rowMax = max(rowMax, input.matrix[rowOffset + i]);
+               var rowMax: f32 = 0.0;
+              for (var col = 0u; col < input.cols; col += 1u) {
+                rowMax = max(rowMax, input.matrix[rowOffset + col]);
               }
-
-              var unnormalizedSoftmax: f32 = exp(
-                input.matrix[rowOffset + col] - rowMax
-              );
 
               // Compute the sum of all unnormalized softmax values in the row
               var sum: f32 = 0.0;
 
-              for (var i = 0u; i < input.cols; i = i + 1u) {
-                sum = sum + exp(input.matrix[rowOffset + i] - rowMax);
+              for (var col = 0u; col < input.cols; col += 1u) {
+                var unnormalizedSoftmax: f32 = exp(
+                  input.matrix[rowOffset + col] - rowMax
+                );
+
+                sum += unnormalizedSoftmax;
+                result.matrix[rowOffset + col] = unnormalizedSoftmax;
               }
 
-              result.matrix[rowOffset + col] = unnormalizedSoftmax / sum;
+              // Normalize the softmax values
+              for (var col = 0u; col < input.cols; col += 1u) {
+                result.matrix[rowOffset + col] /= sum;
+              }
             }
           `,
         }),
@@ -217,7 +217,7 @@ export class Softmax extends Op {
       {
         pipeline: this.pipeline,
         params: [this.dependencies[0].buffer, this.buffer],
-        workgroups: [this.shape.rows, this.shape.cols, 1],
+        workgroups: [this.shape.rows, 1, 1],
       },
     ];
   }

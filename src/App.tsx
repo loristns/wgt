@@ -1,15 +1,14 @@
 import {WGT} from './lib';
 import {Tensor} from './lib/tensor';
-import {Gelu, Input, Matmul, Softmax} from './lib/ops';
+import {Gelu, Gemm, Input, Softmax} from './lib/ops';
 
 async function run() {
   await WGT.initializeGpu();
 
   // Compute graph
-  // (input1 @ input2) @ (input1 @ input2)
   const input1 = new Input(1024, 1024);
   const input2 = new Input(1024, 1024);
-  const matmul = new Matmul(input1, input2);
+  const matmul = new Gemm(input1, input1, input2);
 
   const softmax = new Softmax(matmul);
   const gelu = new Gelu(matmul);
@@ -31,7 +30,7 @@ async function run() {
       .map(() =>
         Array(1024)
           .fill(1)
-          .map(() => Math.random() * 0.1)
+          .map(() => Math.random() * 10)
       )
   );
 

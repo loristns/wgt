@@ -49,12 +49,7 @@ async function run() {
   console.log(output3.data);
 
   // Cleanup
-  input1.clean();
-  input2.clean();
-  matmul.clean();
-  matmul2.clean();
-  softmax.clean();
-  gelu.clean();
+  WGT.destroy([matmul, softmax, gelu]);
 }
 
 function App() {

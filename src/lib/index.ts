@@ -87,4 +87,11 @@ export class WGT {
       })
     );
   }
+
+  static destroy(ops: Op[]) {
+    ops.forEach(op => {
+      op.destroy();
+      op.dependencies.forEach(dep => dep.destroy());
+    });
+  }
 }

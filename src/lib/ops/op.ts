@@ -61,7 +61,7 @@ export abstract class Op {
     return [...this.dependencies.flatMap(d => d.getCommands())];
   }
 
-  clean() {
+  destroy() {
     this.buffer.destroy();
     this._readableBuffer?.destroy();
   }

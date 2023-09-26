@@ -26,7 +26,7 @@ export class Matmul extends Op {
             // Output
             @group(0) @binding(2) var<storage, read_write> result: Tensor;
             
-            @compute @workgroup_size(64) fn main(
+            @compute @workgroup_size(16, 16) fn main(
               @builtin(global_invocation_id) id: vec3<u32>
             ) {
               result.rows = a.rows;
@@ -60,7 +60,10 @@ export class Matmul extends Op {
           this.dependencies[1].buffer,
           this.buffer,
         ],
-        workgroups: [this.shape.rows, this.shape.cols],
+        workgroups: [
+          Math.ceil(this.shape.rows / 16),
+          Math.ceil(this.shape.cols / 16),
+        ],
       },
     ];
   }

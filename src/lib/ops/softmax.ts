@@ -32,7 +32,7 @@ export class Softmax extends Op {
             // Output
             @group(0) @binding(1) var<storage, read_write> result: Tensor;
            
-            @compute @workgroup_size(64) fn main(
+            @compute @workgroup_size(256) fn main(
               @builtin(global_invocation_id) id: vec3<u32>,
             ) {
               result.rows = input.rows;
@@ -77,7 +77,7 @@ export class Softmax extends Op {
       {
         pipeline: this.pipeline,
         params: [this.dependencies[0].buffer, this.buffer],
-        workgroups: [this.shape.rows, 1, 1],
+        workgroups: [Math.ceil(this.shape.rows / 256)],
       },
     ];
   }

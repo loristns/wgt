@@ -25,7 +25,7 @@ export class Gelu extends Op {
             // Output
             @group(0) @binding(1) var<storage, read_write> result: Tensor;
            
-            @compute @workgroup_size(64) fn main(
+            @compute @workgroup_size(16, 16) fn main(
               @builtin(global_invocation_id) id: vec3<u32>,
             ) {
               result.rows = input.rows;
@@ -51,7 +51,10 @@ export class Gelu extends Op {
       {
         pipeline: this.pipeline,
         params: [this.dependencies[0].buffer, this.buffer],
-        workgroups: [this.shape.rows, this.shape.cols],
+        workgroups: [
+          Math.ceil(this.shape.rows / 16),
+          Math.ceil(this.shape.cols / 16),
+        ],
       },
     ];
   }

@@ -10,7 +10,6 @@ async function run() {
   const input1 = new Input(1024, 1024);
   const input2 = new Input(1024, 1024);
   const matmul = new Matmul(input1, input2);
-  const matmul2 = new Matmul(matmul, matmul);
 
   const softmax = new Softmax(matmul);
   const gelu = new Gelu(matmul);

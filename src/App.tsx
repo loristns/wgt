@@ -6,8 +6,8 @@ async function run() {
   await WGT.initializeGpu();
 
   // Compute graph
-  const input1 = new Input(1024, 1024);
-  const input2 = new Input(1024, 1024);
+  const input1 = new Input(1, 1024, 1024);
+  const input2 = new Input(1, 1024, 1024);
   const matmul = new Gemm(input1, input1, input2);
 
   const softmax = new Softmax(matmul);

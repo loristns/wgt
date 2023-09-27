@@ -1,5 +1,5 @@
 import {WGT} from '../index';
-import {WGSL_TENSOR_TYPE} from '../tensor';
+import {WGSL_TENSOR} from '../tensor';
 import {Op, OpCommand} from './op';
 
 /**
@@ -24,7 +24,7 @@ export class Softmax extends Op {
       compute: {
         module: WGT.device.createShaderModule({
           code: /* wgsl */ `
-            ${WGSL_TENSOR_TYPE}
+            ${WGSL_TENSOR}
       
             // Input
             @group(0) @binding(0) var<storage, read> input: Tensor;
@@ -32,36 +32,35 @@ export class Softmax extends Op {
             // Output
             @group(0) @binding(1) var<storage, read_write> result: Tensor;
            
-            @compute @workgroup_size(256) fn main(
+            @compute @workgroup_size(256, 1) fn main(
               @builtin(global_invocation_id) id: vec3<u32>,
             ) {
-              result.rows = input.rows;
-              result.cols = input.cols;
+              result.shape = input.shape;
               
+              let batch = id.y;
               let row = id.x;
-              let rowOffset = row * input.cols;
          
               // Get the max value in the row (across all columns)
                var rowMax: f32 = 0.0;
-              for (var col = 0u; col < input.cols; col += 1u) {
-                rowMax = max(rowMax, input.matrix[rowOffset + col]);
+              for (var col = 0u; col < input.shape.cols; col += 1u) {
+                rowMax = max(rowMax, input.matrix[tensor_idx(input.shape, batch, row, col)]);
               }
 
               // Compute the sum of all unnormalized softmax values in the row
               var sum: f32 = 0.0;
 
-              for (var col = 0u; col < input.cols; col += 1u) {
+              for (var col = 0u; col < input.shape.cols; col += 1u) {
                 var unnormalizedSoftmax: f32 = exp(
-                  input.matrix[rowOffset + col] - rowMax
+                  input.matrix[tensor_idx(input.shape, batch, row, col)] - rowMax
                 );
 
                 sum += unnormalizedSoftmax;
-                result.matrix[rowOffset + col] = unnormalizedSoftmax;
+                result.matrix[tensor_idx(result.shape, batch, row, col)] = unnormalizedSoftmax;
               }
 
               // Normalize the softmax values
-              for (var col = 0u; col < input.cols; col += 1u) {
-                result.matrix[rowOffset + col] /= sum;
+              for (var col = 0u; col < input.shape.cols; col += 1u) {
+                result.matrix[tensor_idx(result.shape, batch, row, col)] /= sum;
               }
             }
           `,
@@ -77,7 +76,7 @@ export class Softmax extends Op {
       {
         pipeline: this.pipeline,
         params: [this.dependencies[0].buffer, this.buffer],
-        workgroups: [Math.ceil(this.shape.rows / 256)],
+        workgroups: [Math.ceil(this.shape.rows / 256), this.shape.batches],
       },
     ];
   }

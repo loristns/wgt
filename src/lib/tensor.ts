@@ -1,12 +1,14 @@
 /**
- * Represents a 2D tensor shape.
+ * Represents a 3D tensor shape.
  * Uses explicit fields instead of an array for readability.
  */
 export class TensorShape {
+  readonly batches: number;
   readonly rows: number;
   readonly cols: number;
 
-  constructor(rows: number, cols: number) {
+  constructor(batches: number, rows: number, cols: number) {
+    this.batches = batches;
     this.rows = rows;
     this.cols = cols;
   }
@@ -15,25 +17,14 @@ export class TensorShape {
    * Returns the size of the tensor in bytes.
    */
   get size(): number {
-    return this.rows * this.cols * 4 + 2 * 4;
+    return this.batches * this.rows * this.cols * 4 + 3 * 4;
   }
 }
 
 /**
- * The WGSL struct representation of a tensor.
- */
-export const WGSL_TENSOR_TYPE = /* wgsl */ `
-  struct Tensor {
-    rows: u32,
-    cols: u32,
-    matrix: array<f32>,
-  }
-`;
-
-/**
- * A 2D tensor type with an internal binary representation :
- *  - First 2 32-bit unsigned integers represent the shape of the tensor (rows, cols).
- *  - The rest of the buffer is a 32-bit float array representing the matrix.
+ * A 3D tensor type with an internal binary representation :
+ *  - First 3 32-bit unsigned integers represent the shape of the tensor (batches, rows, cols).
+ *  - The rest of the buffer is a 32-bit float array representing the tensor.
  */
 export class Tensor {
   arrayBuffer: ArrayBuffer;
@@ -50,24 +41,32 @@ export class Tensor {
     this.arrayBuffer = arrayBuffer;
 
     this.rawData = new Uint32Array(this.arrayBuffer);
-    this.rawShape = new Uint32Array(this.arrayBuffer, 0, 2);
-    this.rawMatrix = new Float32Array(this.arrayBuffer, 2 * 4);
+    this.rawShape = new Uint32Array(this.arrayBuffer, 0, 3);
+    this.rawMatrix = new Float32Array(this.arrayBuffer, 3 * 4);
   }
 
   get shape(): TensorShape {
-    return new TensorShape(this.rawShape[0], this.rawShape[1]);
+    return new TensorShape(
+      this.rawShape[0],
+      this.rawShape[1],
+      this.rawShape[2]
+    );
   }
 
-  get data(): number[][] {
-    const {rows, cols} = this.shape;
+  get data(): number[][][] {
+    const {batches, rows, cols} = this.shape;
 
-    const data: number[][] = [];
+    const data: number[][][] = [];
 
-    for (let i = 0; i < rows; i++) {
+    for (let i = 0; i < batches; i++) {
       data.push([]);
 
-      for (let j = 0; j < cols; j++) {
-        data[i].push(this.rawMatrix[i * cols + j]);
+      for (let j = 0; j < rows; j++) {
+        data[i].push([]);
+
+        for (let k = 0; k < cols; k++) {
+          data[i][j].push(this.rawMatrix[i * rows * cols + j * cols + k]);
+        }
       }
     }
 
@@ -75,18 +74,55 @@ export class Tensor {
   }
 
   /**
-   * Constructs a tensor from a 2D array (array of arrays).
+   * Constructs a tensor from a number, a vector, a matrix or a 3D tensor.
    */
-  static fromArray(array: number[][]): Tensor {
-    const [rows, cols] = [array.length, array[0].length];
+  static fromArray(
+    array: number | number[] | number[][] | number[][][]
+  ): Tensor {
+    if (typeof array === 'number') {
+      return Tensor.fromArray([[[array]]]);
+    }
+    if (typeof array[0] === 'number') {
+      return Tensor.fromArray([[array as number[]]]);
+    }
+    if (typeof array[0][0] === 'number') {
+      return Tensor.fromArray([array as number[][]]);
+    }
 
-    const arrayBuffer = new ArrayBuffer(rows * cols * 4 + 2 * 4);
+    const [batches, rows, cols] = [
+      array.length,
+      array[0].length,
+      array[0][0].length,
+    ];
+
+    const arrayBuffer = new ArrayBuffer(batches * rows * cols * 4 + 3 * 4);
     const rawData = new Uint32Array(arrayBuffer);
-    const rawMatrix = new Float32Array(arrayBuffer, 2 * 4);
+    const rawMatrix = new Float32Array(arrayBuffer, 3 * 4);
 
-    rawData.set([rows, cols], 0);
-    rawMatrix.set(array.flat(), 0);
+    rawData.set([batches, rows, cols], 0);
+    rawMatrix.set(array.flat(2), 0);
 
     return new Tensor(rawData);
   }
 }
+
+/**
+ * The WGSL representation of a tensor.
+ */
+export const WGSL_TENSOR = /* wgsl */ `
+  struct TensorShape {
+    batches: u32,
+    rows: u32,
+    cols: u32,
+  }
+
+  struct Tensor {
+    shape: TensorShape,
+    matrix: array<f32>,
+  }
+
+  // Utility functions to access a tensor's matrix.
+  fn tensor_idx(shape: TensorShape, batch: u32, row: u32, col: u32) -> u32 {
+    return batch * shape.rows * shape.cols + row * shape.cols + col;
+  }
+`;

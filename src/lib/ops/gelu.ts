@@ -1,5 +1,5 @@
 import {WGT} from '../index';
-import {WGSL_TENSOR_TYPE} from '../tensor';
+import {WGSL_TENSOR} from '../tensor';
 import {Op, OpCommand} from './op';
 
 /**
@@ -17,7 +17,7 @@ export class Gelu extends Op {
       compute: {
         module: WGT.device.createShaderModule({
           code: /* wgsl */ `
-            ${WGSL_TENSOR_TYPE}
+            ${WGSL_TENSOR}
       
             // Input
             @group(0) @binding(0) var<storage, read> input: Tensor;
@@ -25,17 +25,18 @@ export class Gelu extends Op {
             // Output
             @group(0) @binding(1) var<storage, read_write> result: Tensor;
            
-            @compute @workgroup_size(16, 16) fn main(
+            @compute @workgroup_size(16, 16, 1) fn main(
               @builtin(global_invocation_id) id: vec3<u32>,
             ) {
-              result.rows = input.rows;
-              result.cols = input.cols;
+              result.shape = input.shape;
               
+              let batch = id.z;
               let row = id.x;
               let col = id.y;
-              let value = input.matrix[row * input.cols + col];
+
+              let value = input.matrix[tensor_idx(input.shape, batch, row, col)];
             
-              result.matrix[row * result.cols + col] = \
+              result.matrix[tensor_idx(result.shape, batch, row, col)] = \
                 0.5 * value * (1 + tanh(0.797884 * (value + 0.044715 * pow(value, 3.0))));
             }
           `,
@@ -54,6 +55,7 @@ export class Gelu extends Op {
         workgroups: [
           Math.ceil(this.shape.rows / 16),
           Math.ceil(this.shape.cols / 16),
+          this.shape.batches, // We put batches last because its value is likely to be small (and the z dimension is generally smaller)
         ],
       },
     ];

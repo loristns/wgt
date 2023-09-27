@@ -1,5 +1,5 @@
 import {WGT} from '../index';
-import {TensorShape, WGSL_TENSOR_TYPE} from '../tensor';
+import {TensorShape, WGSL_TENSOR} from '../tensor';
 import {Op, OpCommand} from './op';
 
 /**
@@ -9,7 +9,7 @@ export class Gemm extends Op {
   pipeline: GPUComputePipeline;
 
   constructor(a: Op, b: Op, c?: Op) {
-    const shape = new TensorShape(a.shape.rows, b.shape.cols);
+    const shape = new TensorShape(a.shape.batches, a.shape.rows, b.shape.cols);
 
     if (c != null) {
       super(shape, [a, b, c]);
@@ -22,7 +22,7 @@ export class Gemm extends Op {
       compute: {
         module: WGT.device.createShaderModule({
           code: /* wgsl */ `
-            ${WGSL_TENSOR_TYPE}
+            ${WGSL_TENSOR}
       
             // Inputs
             @group(0) @binding(0) var<storage, read> a: Tensor;
@@ -39,24 +39,30 @@ export class Gemm extends Op {
               c != null ? '3' : '2'
             }) var<storage, read_write> result: Tensor;
             
-            @compute @workgroup_size(16, 16) fn main(
+            @compute @workgroup_size(16, 16, 1) fn main(
               @builtin(global_invocation_id) id: vec3<u32>
             ) {
-              result.rows = a.rows;
-              result.cols = b.cols;
-              
+              result.shape = TensorShape(a.shape.batches, a.shape.rows, b.shape.cols);
+
+              let batch = id.z;
               let row = id.x;
-              let col = id.y;              
+              let col = id.y;
          
               var value: f32 = 0.0;
             
-              for (var i = 0u; i < a.cols; i += 1u) {
-                value += a.matrix[row * a.cols + i] * b.matrix[i * b.cols + col];
+              for (var i = 0u; i < a.shape.cols; i += 1u) {
+                value += \
+                  a.matrix[tensor_idx(a.shape, batch, row, i)] \
+                * b.matrix[tensor_idx(b.shape, batch, i, col)];
               }
 
-              ${c != null ? 'value += c.matrix[row * c.cols + col];' : ''}
+              ${
+                c != null
+                  ? 'value += c.matrix[tensor_idx(c.shape, batch, row, col)];'
+                  : ''
+              }
             
-              result.matrix[row * result.cols + col] = value;
+              result.matrix[tensor_idx(result.shape, batch, row, col)] = value;
             }
           `,
         }),
@@ -74,6 +80,7 @@ export class Gemm extends Op {
         workgroups: [
           Math.ceil(this.shape.rows / 16),
           Math.ceil(this.shape.cols / 16),
+          this.shape.batches,
         ],
       },
     ];

@@ -7,12 +7,16 @@ import {Op} from './op';
  */
 export class Input extends Op {
   constructor(shape: TensorShape);
-  constructor(rows: number, cols: number);
-  constructor(shapeOrRows: TensorShape | number, cols?: number) {
+  constructor(batches: number, rows: number, cols: number);
+  constructor(
+    shapeOrBatches: TensorShape | number,
+    rows?: number,
+    cols?: number
+  ) {
     const shape =
-      typeof shapeOrRows === 'number'
-        ? new TensorShape(shapeOrRows, cols!)
-        : shapeOrRows;
+      typeof shapeOrBatches === 'number'
+        ? new TensorShape(shapeOrBatches, rows!, cols!)
+        : shapeOrBatches;
 
     // The input operation has no dependencies so we pass an empty array.
     super(shape, []);

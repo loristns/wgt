@@ -104,6 +104,20 @@ export class Tensor {
 
     return new Tensor(rawData);
   }
+
+  static fromShape(shape: TensorShape, value: number | 'random' = 0): Tensor {
+    const arrayBuffer = new ArrayBuffer(shape.size);
+    const rawData = new Uint32Array(arrayBuffer);
+    const rawMatrix = new Float32Array(arrayBuffer, 3 * 4);
+
+    rawData.set([shape.batches, shape.rows, shape.cols], 0);
+
+    for (let i = 0; i < shape.batches * shape.rows * shape.cols; i++) {
+      rawMatrix[i] = value === 'random' ? Math.random() : value;
+    }
+
+    return new Tensor(rawData);
+  }
 }
 
 /**

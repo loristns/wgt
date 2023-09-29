@@ -8,36 +8,22 @@ async function run() {
   // Compute graph
   const input1 = new Input(1, 1024, 1024);
   const input2 = new Input(1, 1024, 1024);
-  const matmul = new Gemm(input1, input1, input2);
+  const input3 = new Input(1, 1, 1024);
+  const matmul = new Gemm(input1, input2, input3);
 
   const softmax = new Softmax(matmul);
   const gelu = new Gelu(matmul);
   const layerNorm = new LayerNorm(matmul, matmul, gelu);
 
   // Input data
-  const a = Tensor.fromArray(
-    Array(1024)
-      .fill(1)
-      .map(() =>
-        Array(1024)
-          .fill(1)
-          .map(() => Math.random() * 0.00001)
-      )
-  );
-
-  const b = Tensor.fromArray(
-    Array(1024)
-      .fill(1)
-      .map(() =>
-        Array(1024)
-          .fill(1)
-          .map(() => Math.random() * -10)
-      )
-  );
+  const a = Tensor.fromShape(input1.shape, 'random');
+  const b = Tensor.fromShape(input2.shape, 1);
+  const c = Tensor.fromShape(input3.shape, 'random');
 
   // Run
   input1.write(a);
   input2.write(b);
+  input3.write(c);
 
   console.time('matmul_2d');
   const [output1, output2, output3, output4] = await WGT.run([

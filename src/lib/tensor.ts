@@ -123,6 +123,13 @@ export const WGSL_TENSOR = /* wgsl */ `
 
   // Utility functions to access a tensor's matrix.
   fn tensor_idx(shape: TensorShape, batch: u32, row: u32, col: u32) -> u32 {
-    return batch * shape.rows * shape.cols + row * shape.cols + col;
+    // The use of min() allow to make all kernels works for spread tensors.
+    // For example, a [1, 10, 3] tensor can be accessed as a [10, 10, 3] tensor (the first batch is spread)
+
+    // TODO: Check that the spread tensor is valid (i.e. that the spread dimension is 1).
+    // Unchecked case is for example a [2, 10, 3] tensor accessed as a [10, 10, 3] tensor, which is invalid.
+    return min(batch, shape.batches - 1) * shape.rows * shape.cols \
+      + min(row, shape.rows - 1) * shape.cols \
+      + min(col, shape.cols - 1);
   }
 `;

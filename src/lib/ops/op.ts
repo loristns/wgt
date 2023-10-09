@@ -1,14 +1,26 @@
 import {WGT} from '../index';
 import {TensorShape} from '../tensor';
 
+export enum OpType {
+  COMPUTE,
+  COPY,
+}
+
 /**
  * A simplified description of a compute pass on the GPU.
  */
-export type OpCommand = {
-  pipeline: GPUComputePipeline;
-  params: GPUBuffer[];
-  workgroups: [number, number?, number?];
-};
+export type OpCommand =
+  | {
+      type?: OpType.COMPUTE; // This is the default type, so it can be omitted.
+      pipeline: GPUComputePipeline;
+      params: GPUBuffer[];
+      workgroups: [number, number?, number?];
+    }
+  | {
+      type: OpType.COPY;
+      src: GPUBuffer;
+      dst: GPUBuffer;
+    };
 
 /**
  * Base class for all operations.
@@ -42,17 +54,20 @@ export abstract class Op {
     return this._readableBuffer;
   }
 
-  constructor(shape: TensorShape, dependencies: Op[]) {
+  constructor(shape: TensorShape, dependencies: Op[], buffer?: GPUBuffer) {
     this.shape = shape;
     this.dependencies = dependencies;
 
-    this.buffer = WGT.device.createBuffer({
-      size: this.shape.size,
-      usage:
-        GPUBufferUsage.STORAGE |
-        GPUBufferUsage.COPY_SRC |
-        GPUBufferUsage.COPY_DST,
-    });
+    // If a buffer is provided, use it. Otherwise, create a new buffer.
+    this.buffer =
+      buffer ??
+      WGT.device.createBuffer({
+        size: this.shape.size,
+        usage:
+          GPUBufferUsage.STORAGE |
+          GPUBufferUsage.COPY_SRC |
+          GPUBufferUsage.COPY_DST,
+      });
   }
 
   getCommands(): OpCommand[] {

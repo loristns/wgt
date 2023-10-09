@@ -1,46 +1,72 @@
 import {WGT} from './lib';
 import {Tensor} from './lib/tensor';
-import {Gelu, Gemm, Input, LayerNorm, Softmax} from './lib/ops';
+import {Input, SelfAttention} from './lib/ops';
 
 async function run() {
   await WGT.initializeGpu();
 
   // Compute graph
-  const input1 = new Input(1, 1024, 1024);
-  const input2 = new Input(1, 1024, 1024);
-  const input3 = new Input(1, 1, 1024);
-  const matmul = new Gemm(input1, input2, input3);
+  const input = new Input(1, 32, 1024);
 
-  const softmax = new Softmax(matmul);
-  const gelu = new Gelu(matmul);
-  const layerNorm = new LayerNorm(matmul, matmul, gelu);
+  const queryWeights = new Input(10, 1024, 512);
+  const queryBias = new Input(10, 1, 512);
+
+  const keyWeights = new Input(10, 1024, 512);
+  const keyBias = new Input(10, 1, 512);
+
+  const valueWeights = new Input(10, 1024, 512);
+  const valueBias = new Input(10, 1, 512);
+
+  const projWeights = new Input(1, 10 * 512, 1024);
+  const projBias = new Input(1, 1, 1024);
+
+  const attention = new SelfAttention(
+    input,
+    queryWeights,
+    queryBias,
+    keyWeights,
+    keyBias,
+    valueWeights,
+    valueBias,
+    projWeights,
+    projBias
+  );
 
   // Input data
-  const a = Tensor.fromShape(input1.shape, 'random');
-  const b = Tensor.fromShape(input2.shape, 1);
-  const c = Tensor.fromShape(input3.shape, 'random');
+  const inputTensor = Tensor.fromShape(input.shape, 1);
 
-  // Run
-  input1.write(a);
-  input2.write(b);
-  input3.write(c);
+  const qw = Tensor.fromShape(queryWeights.shape, 'random');
+  const qb = Tensor.fromShape(queryBias.shape, 'random');
 
-  console.time('matmul_2d');
-  const [output1, output2, output3, output4] = await WGT.run([
-    matmul,
-    softmax,
-    gelu,
-    layerNorm,
-  ]);
-  console.timeEnd('matmul_2d');
+  const kw = Tensor.fromShape(keyWeights.shape, 'random');
+  const kb = Tensor.fromShape(keyBias.shape, 'random');
 
-  console.log(output1.data);
-  console.log(output2.data);
-  console.log(output3.data);
-  console.log(output4.data);
+  const vw = Tensor.fromShape(valueWeights.shape, 'random');
+  const vb = Tensor.fromShape(valueBias.shape, 'random');
+
+  const pw = Tensor.fromShape(projWeights.shape, 'random');
+  const pb = Tensor.fromShape(projBias.shape, 'random');
+
+  input.write(inputTensor);
+  queryWeights.write(qw);
+  queryBias.write(qb);
+  keyWeights.write(kw);
+  keyBias.write(kb);
+  valueWeights.write(vw);
+  valueBias.write(vb);
+  projWeights.write(pw);
+  projBias.write(pb);
+
+  console.time('attention');
+  const [output] = await WGT.run([attention]);
+  console.timeEnd('attention');
+
+  console.log(output.data);
+  console.log(output.shape);
+  console.log(output.rawData);
 
   // Cleanup
-  WGT.destroy([matmul, softmax, gelu, layerNorm]);
+  WGT.destroy([attention]);
 }
 
 function App() {

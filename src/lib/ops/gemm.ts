@@ -9,7 +9,11 @@ export class Gemm extends Op {
   pipeline: GPUComputePipeline;
 
   constructor(a: Op, b: Op, c?: Op) {
-    const shape = new TensorShape(a.shape.batches, a.shape.rows, b.shape.cols);
+    const shape = new TensorShape(
+      Math.max(a.shape.batches, b.shape.batches),
+      a.shape.rows,
+      b.shape.cols
+    );
 
     if (c != null) {
       super(shape, [a, b, c]);
@@ -42,7 +46,14 @@ export class Gemm extends Op {
             @compute @workgroup_size(16, 16, 1) fn main(
               @builtin(global_invocation_id) id: vec3<u32>
             ) {
-              result.shape = TensorShape(a.shape.batches, a.shape.rows, b.shape.cols);
+              result.shape = TensorShape();
+              if (a.shape.batches > b.shape.batches) {
+                result.shape.batches = a.shape.batches;
+              } else {
+                result.shape.batches = b.shape.batches;
+              }
+              result.shape.rows = a.shape.rows;
+              result.shape.cols = b.shape.cols;
 
               let batch = id.z;
               let row = id.x;

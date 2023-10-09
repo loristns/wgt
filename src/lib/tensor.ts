@@ -113,7 +113,7 @@ export class Tensor {
     rawData.set([shape.batches, shape.rows, shape.cols], 0);
 
     for (let i = 0; i < shape.batches * shape.rows * shape.cols; i++) {
-      rawMatrix[i] = value === 'random' ? Math.random() : value;
+      rawMatrix[i] = value === 'random' ? Math.random() * 0.001 : value;
     }
 
     return new Tensor(rawData);

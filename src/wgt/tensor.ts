@@ -25,8 +25,23 @@ export class Shape {
   get size(): number {
     return this.batches * this.rows * this.cols * 4 + 3 * 4;
   }
+
+  equals(shape: Shape): boolean {
+    return (
+      this.batches === shape.batches &&
+      this.rows === shape.rows &&
+      this.cols === shape.cols
+    );
+  }
+
+  toString(): string {
+    return `${this.batches}x${this.rows}x${this.cols}`;
+  }
 }
 
+/**
+ * A tensor is a multi-dimensional array of numbers.
+ */
 export class Tensor {
   static WGSL = /* wgsl */ `
     ${Shape.WGSL}
@@ -37,7 +52,7 @@ export class Tensor {
     }
 
     // Utility functions to access a tensor's matrix.
-    fn tensor_idx(shape: TensorShape, batch: u32, row: u32, col: u32) -> u32 {
+    fn tensor_idx(shape: Shape, batch: u32, row: u32, col: u32) -> u32 {
       // The use of min() allow to make all kernels works for spread tensors.
       // For example, a [1, 10, 3] tensor can be accessed as a [10, 10, 3] tensor (the first batch is spread)
 

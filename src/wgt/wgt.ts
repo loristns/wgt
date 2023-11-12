@@ -1,5 +1,7 @@
-import {Op} from './ops';
+import {Command} from './commands';
+import {Op} from './op';
 import {Tensor} from './tensor';
+import {TensorBuffer} from './tensorBuffer';
 
 /**
  * The WGT class is the main class of the WGT library.
@@ -20,16 +22,29 @@ export class WGT {
     WGT.device = device;
   }
 
-  static async run(outputOps: Op[]): Promise<Tensor[]> {
-    // Mark all output ops as readable.
-    outputOps.forEach(op => {
-      op.buffer.markAsReadable();
+  inputBuffers: TensorBuffer[];
+  outputBuffers: TensorBuffer[];
+  private _commands: Command[];
+
+  private get _outputOps(): Op[] {
+    return this.outputBuffers
+      .map(outputBuffer => outputBuffer.parentOp)
+      .filter((op): op is Op => op != null);
+  }
+
+  constructor(inputs: TensorBuffer[], outputs: TensorBuffer[]) {
+    this.inputBuffers = inputs;
+    this.outputBuffers = outputs;
+
+    // Mark all output buffers as readable.
+    this.outputBuffers.forEach(outputBuffer => {
+      outputBuffer.markAsReadable();
     });
 
-    // Encode the operations.
+    // Get all needed commands.
     let commands = [
-      ...outputOps.flatMap(op => op.getCommands()),
-      ...outputOps.map(op => op.buffer.getReadCommand()),
+      ...this._outputOps.flatMap(op => op.commands),
+      ...this.outputBuffers.map(outputBuffer => outputBuffer.readCommand),
     ];
 
     // Filter out duplicate commands.
@@ -40,9 +55,18 @@ export class WGT {
       return index === firstCommandIndex;
     });
 
+    this._commands = commands;
+  }
+
+  async run(inputs: Tensor[]): Promise<Tensor[]> {
+    // Write the input tensors to the input buffers.
+    inputs.forEach((input, i) => {
+      this.inputBuffers[i].write(input);
+    });
+
     const encoder = WGT.device.createCommandEncoder();
 
-    commands.forEach(command => {
+    this._commands.forEach(command => {
       command.execute(encoder);
     });
 
@@ -51,6 +75,12 @@ export class WGT {
     WGT.device.queue.submit([commandBuffer]);
 
     // Read the output tensors.
-    return await Promise.all(outputOps.map(op => op.buffer.read()));
+    return await Promise.all(
+      this.outputBuffers.map(outputBuffer => outputBuffer.read())
+    );
+  }
+
+  destroy() {
+    this._outputOps.forEach(outputOp => outputOp.destroySubTree());
   }
 }

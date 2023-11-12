@@ -1,22 +1,24 @@
 import {WGT} from './wgt/wgt';
-import {input} from './wgt/tensorBuffer';
-import {Shape, Tensor} from './wgt/tensor';
-import {Gemm} from './wgt/ops/gemm';
+import {Tensor} from './wgt/tensor';
+import {input} from './wgt/ops/input';
+import {linear, LinearParameters} from './wgt/ops/linear';
 
 async function run() {
   await WGT.initializeGpu();
 
-  const a = Tensor.random(new Shape({batches: 1, rows: 500, cols: 5000}));
-  const b = Tensor.random(new Shape({batches: 10, rows: 5000, cols: 500}));
+  const params: LinearParameters = {
+    weights: Tensor.random({batches: 1, rows: 10, cols: 200}),
+    bias: Tensor.zeros({batches: 1, rows: 1, cols: 200}),
+  };
 
-  const input1 = input(1, 500, 5000);
-  const input2 = input(10, 5000, 500);
+  const input1 = input({batches: 1, rows: 1, cols: 10});
+  const linear1 = linear(input1, params);
+  const graph = new WGT([input1], [linear1]);
 
-  const outputOp = new Gemm(input1, input2);
+  const a = Tensor.random({batches: 1, rows: 1, cols: 10});
+  console.log(await graph.run([a]));
 
-  input1.write(a);
-  input2.write(b);
-  console.log(await WGT.run([outputOp]));
+  graph.destroy();
 }
 
 function App() {

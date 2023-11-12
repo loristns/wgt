@@ -1,10 +1,10 @@
 import {WGT} from './wgt';
 import {Shape, Tensor} from './tensor';
 import {RawCopyCommand} from './commands';
-import {Op} from './ops';
+import {Op} from './op';
 
 /**
- * A TensorBuffer is a GPU buffer that contains a tensor.
+ * A TensorBuffer is a GPU buffer that may contain a tensor.
  */
 export class TensorBuffer {
   readonly shape: Shape;
@@ -53,7 +53,7 @@ export class TensorBuffer {
     }
   }
 
-  getReadCommand() {
+  get readCommand() {
     if (!this.isReadable) {
       throw new Error(
         'Cannot add read command for tensor buffer that is not marked as readable.'
@@ -103,20 +103,4 @@ export class TensorBuffer {
     this._buffer.destroy();
     this._readableBuffer?.destroy();
   }
-}
-
-export function input(
-  shapeOrBatches: Shape | number,
-  rows?: number,
-  cols?: number
-): TensorBuffer {
-  const shape =
-    typeof shapeOrBatches === 'number'
-      ? new Shape({
-          batches: shapeOrBatches,
-          rows: rows as number,
-          cols: cols as number,
-        })
-      : shapeOrBatches;
-  return new TensorBuffer(shape);
 }

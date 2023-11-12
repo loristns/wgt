@@ -1,3 +1,11 @@
+interface ShapeParams {
+  batches: number;
+  rows: number;
+  cols: number;
+}
+
+export type ShapeLike = Shape | ShapeParams;
+
 export class Shape {
   static WGSL = /* wgsl */ `
     struct Shape {
@@ -11,12 +19,20 @@ export class Shape {
   readonly rows: number;
   readonly cols: number;
 
-  constructor(params: {batches: number; rows: number; cols: number}) {
+  constructor(params: ShapeParams) {
     const {batches, rows, cols} = params;
 
     this.batches = batches;
     this.rows = rows;
     this.cols = cols;
+  }
+
+  static from(shapeLike: ShapeLike): Shape {
+    if (shapeLike instanceof Shape) {
+      return shapeLike;
+    }
+
+    return new Shape(shapeLike);
   }
 
   /**
@@ -131,7 +147,9 @@ export class Tensor {
     return new Tensor(arrayBuffer);
   }
 
-  static random(shape: Shape): Tensor {
+  static random(shapeLike: ShapeLike): Tensor {
+    const shape = Shape.from(shapeLike);
+
     const arrayBuffer = new ArrayBuffer(shape.size);
     const rawShape = new Uint32Array(arrayBuffer, 0, 3);
     const rawTensor = new Float32Array(arrayBuffer, 3 * 4);
@@ -145,7 +163,9 @@ export class Tensor {
     return new Tensor(arrayBuffer);
   }
 
-  static zeros(shape: Shape): Tensor {
+  static zeros(shapeLike: ShapeLike): Tensor {
+    const shape = Shape.from(shapeLike);
+
     const arrayBuffer = new ArrayBuffer(shape.size);
     const rawShape = new Uint32Array(arrayBuffer, 0, 3);
     const rawTensor = new Float32Array(arrayBuffer, 3 * 4);
@@ -156,7 +176,9 @@ export class Tensor {
     return new Tensor(arrayBuffer);
   }
 
-  static ones(shape: Shape): Tensor {
+  static ones(shapeLike: ShapeLike): Tensor {
+    const shape = Shape.from(shapeLike);
+
     const arrayBuffer = new ArrayBuffer(shape.size);
     const rawShape = new Uint32Array(arrayBuffer, 0, 3);
     const rawTensor = new Float32Array(arrayBuffer, 3 * 4);

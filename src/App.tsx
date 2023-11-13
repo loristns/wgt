@@ -2,6 +2,7 @@ import {WGT} from './wgt/wgt';
 import {Tensor} from './wgt/tensor';
 import {input} from './wgt/ops/input';
 import {linear, LinearParameters} from './wgt/ops/linear';
+import {gelu} from './wgt/ops/gelu';
 
 async function run() {
   await WGT.initializeGpu();
@@ -13,10 +14,15 @@ async function run() {
 
   const input1 = input({batches: 1, rows: 1, cols: 10});
   const linear1 = linear(input1, params);
-  const graph = new WGT([input1], [linear1]);
+
+  const input2 = input({batches: 1, rows: 1, cols: 1});
+  const gelu1 = gelu(input2);
+
+  const graph = new WGT([input1, input2], [linear1, gelu1]);
 
   const a = Tensor.random({batches: 1, rows: 1, cols: 10});
-  console.log(await graph.run([a]));
+  const b = Tensor.ones({batches: 1, rows: 1, cols: 1});
+  console.log(await graph.run([a, b]));
 
   graph.destroy();
 }

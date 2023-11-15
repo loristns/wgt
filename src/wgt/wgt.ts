@@ -1,16 +1,18 @@
 import {Command} from './commands';
-import {Op} from './op';
 import {Tensor} from './tensor';
-import {TensorBuffer} from './tensorBuffer';
+import {DeviceTensor} from './deviceTensor';
 
 /**
  * The WGT class is the main class of the WGT library.
  *
- * It is used to create and execute operations on the GPU.
+ * It represents a computation graph that can be executed on the GPU.
  */
 export class WGT {
   static device: GPUDevice;
 
+  /**
+   * Set up the WebGPU device.
+   */
   static async initializeGpu() {
     const adapter = await navigator.gpu?.requestAdapter();
     const device = await adapter?.requestDevice();
@@ -22,30 +24,29 @@ export class WGT {
     WGT.device = device;
   }
 
-  inputBuffers: TensorBuffer[];
-  outputBuffers: TensorBuffer[];
+  inputs: DeviceTensor[];
+  outputs: DeviceTensor[];
   private _commands: Command[];
 
-  private get _outputOps(): Op[] {
-    return this.outputBuffers
-      .map(outputBuffer => outputBuffer.parentOp)
-      .filter((op): op is Op => op != null);
-  }
+  /**
+   * Build a computation graph.
+   *
+   * @param inputs List of input DeviceTensor
+   * @param outputs List of output DeviceTensor
+   */
+  constructor(inputs: DeviceTensor[], outputs: DeviceTensor[]) {
+    this.inputs = inputs;
+    this.outputs = outputs;
 
-  constructor(inputs: TensorBuffer[], outputs: TensorBuffer[]) {
-    this.inputBuffers = inputs;
-    this.outputBuffers = outputs;
-
-    // Mark all output buffers as readable.
-    this.outputBuffers.forEach(outputBuffer => {
-      outputBuffer.markAsReadable();
+    // Mark all output DeviceTensor as readable.
+    this.outputs.forEach(output => {
+      output.markAsReadable();
     });
 
     // Get all needed commands.
-    let commands = [
-      ...this._outputOps.flatMap(op => op.commands),
-      ...this.outputBuffers.map(outputBuffer => outputBuffer.readCommand),
-    ];
+    let commands = this.outputs
+      .flatMap(output => output.sourceCommands)
+      .filter((command): command is Command => command != null);
 
     // Filter out duplicate commands.
     commands = commands.filter((command, index) => {
@@ -58,10 +59,17 @@ export class WGT {
     this._commands = commands;
   }
 
+  /**
+   * Run the computation graph.
+   * @param inputs List of input Tensor, in the same order as the inputs
+   *              of the computation graph.
+   * @returns List of output Tensor, in the same order as the outputs
+   *          of the computation graph.
+   */
   async run(inputs: Tensor[]): Promise<Tensor[]> {
-    // Write the input tensors to the input buffers.
+    // Write the input tensors to the GPU.
     inputs.forEach((input, i) => {
-      this.inputBuffers[i].write(input);
+      this.inputs[i].write(input);
     });
 
     const encoder = WGT.device.createCommandEncoder();
@@ -76,11 +84,14 @@ export class WGT {
 
     // Read the output tensors.
     return await Promise.all(
-      this.outputBuffers.map(outputBuffer => outputBuffer.read())
+      this.outputs.map(outputBuffer => outputBuffer.read())
     );
   }
 
+  /**
+   * Destroy the computation graph recursively.
+   */
   destroy() {
-    this._outputOps.forEach(outputOp => outputOp.destroySubTree());
+    this.outputs.forEach(output => output.destroy(true));
   }
 }

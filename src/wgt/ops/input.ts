@@ -1,7 +1,7 @@
 import {Shape, ShapeLike} from '../tensor';
-import {TensorBuffer} from '../tensorBuffer';
+import {DeviceTensor} from '../deviceTensor';
 
-export function input(shapeLike: ShapeLike): TensorBuffer {
+export function input(shapeLike: ShapeLike): DeviceTensor {
   const shape = Shape.from(shapeLike);
-  return new TensorBuffer(shape);
+  return new DeviceTensor(shape);
 }

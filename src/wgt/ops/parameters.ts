@@ -1,12 +1,12 @@
 import {Tensor} from '../tensor';
-import {TensorBuffer} from '../tensorBuffer';
+import {DeviceTensor} from '../deviceTensor';
 
 export type Parameters<Self = unknown> = Record<string, Self | Tensor>;
 export type RootParameters = Parameters<never>;
 
 type RootParameterBuffers<P extends RootParameters> = Record<
   keyof P,
-  TensorBuffer
+  DeviceTensor
 >;
 
 export function parameters<P extends RootParameters>(
@@ -15,7 +15,7 @@ export function parameters<P extends RootParameters>(
   const parameterBuffers = {} as RootParameterBuffers<P>;
 
   Object.entries(parameters).forEach(([name, param]) => {
-    parameterBuffers[name as keyof P] = TensorBuffer.fromTensor(param);
+    parameterBuffers[name as keyof P] = DeviceTensor.fromTensor(param);
   });
 
   return parameterBuffers;

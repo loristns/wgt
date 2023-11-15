@@ -1,40 +1,32 @@
-import {Command} from './commands';
-import {Shape} from './tensor';
-import {TensorBuffer} from './tensorBuffer';
+import {ComputeCommand} from './commands';
+import {DeviceTensor} from './deviceTensor';
 
-export abstract class Op {
-  readonly buffer: TensorBuffer;
-  readonly dependencies: TensorBuffer[];
+/**
+ * An Op is a ComputeCommand that takes DeviceTensor as inputs and outputs.
+ *
+ * It handles references to the inputs and outputs DeviceTensor to build the
+ * computation graph.
+ */
+export class Op extends ComputeCommand {
+  inputs: DeviceTensor[];
+  outputs: DeviceTensor[];
 
-  protected opCommands: Command[] = [];
-
-  constructor(params: {shape: Shape; dependencies: TensorBuffer[]}) {
-    const {shape, dependencies} = params;
-
-    this.buffer = new TensorBuffer(shape, this);
-    this.dependencies = dependencies;
-  }
-
-  get commands(): Command[] {
-    return [
-      // The commands of an operation are the commands of the operations it depends on...
-      ...this.dependencies
-        .map(dependency => dependency.parentOp)
-        .filter((opDependency): opDependency is Op => opDependency != null)
-        .flatMap(opDependency => opDependency.commands),
-
-      // ...followed by its own commands.
-      ...this.opCommands,
-    ];
-  }
-
-  destroySubTree() {
-    this.buffer.destroy();
-
-    this.dependencies.forEach(dependency => {
-      if (dependency.parentOp != null) {
-        dependency.parentOp.destroySubTree();
-      }
+  constructor(params: {
+    inputs: DeviceTensor[];
+    outputs: DeviceTensor[];
+    workgroups: [number, number?, number?];
+    code: string;
+    entryPoint?: string;
+  }) {
+    const {inputs, outputs, workgroups, code, entryPoint = 'main'} = params;
+    super({
+      buffers: [...inputs, ...outputs].map(arg => arg.buffer),
+      workgroups,
+      code,
+      entryPoint,
     });
+
+    this.inputs = inputs;
+    this.outputs = outputs;
   }
 }

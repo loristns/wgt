@@ -1,26 +1,31 @@
-import {TensorBuffer} from './tensorBuffer';
 import {WGT} from './wgt';
 
+/**
+ * A Command is a GPU operation that can be executed.
+ */
 export abstract class Command {
   abstract execute(encoder: GPUCommandEncoder): void;
 }
 
+/**
+ * A ComputeCommand runs a compute shader on the GPU.
+ */
 export class ComputeCommand extends Command {
-  pipeline: GPUComputePipeline;
-  bindGroup: GPUBindGroup;
-  workgroups: [number, number?, number?];
+  private _pipeline: GPUComputePipeline;
+  private _bindGroup: GPUBindGroup;
+  private _workgroups: [number, number?, number?];
 
   constructor(params: {
-    args: TensorBuffer[];
+    buffers: GPUBuffer[];
     workgroups: [number, number?, number?];
     code: string;
     entryPoint?: string;
   }) {
     super();
 
-    const {args, workgroups, code, entryPoint = 'main'} = params;
+    const {buffers, workgroups, code, entryPoint = 'main'} = params;
 
-    this.pipeline = WGT.device.createComputePipeline({
+    this._pipeline = WGT.device.createComputePipeline({
       layout: 'auto',
       compute: {
         module: WGT.device.createShaderModule({
@@ -30,48 +35,49 @@ export class ComputeCommand extends Command {
       },
     });
 
-    this.bindGroup = WGT.device.createBindGroup({
-      layout: this.pipeline.getBindGroupLayout(0),
-      entries: args.map((arg, i) => ({
+    this._bindGroup = WGT.device.createBindGroup({
+      layout: this._pipeline.getBindGroupLayout(0),
+      entries: buffers.map((buffer, i) => ({
         binding: i,
-        resource: {
-          buffer: arg.buffer,
-        },
+        resource: {buffer},
       })),
     });
 
-    this.workgroups = workgroups;
+    this._workgroups = workgroups;
   }
 
   execute(encoder: GPUCommandEncoder) {
     const pass = encoder.beginComputePass();
 
-    pass.setPipeline(this.pipeline);
-    pass.setBindGroup(0, this.bindGroup);
-    pass.dispatchWorkgroups(...this.workgroups);
+    pass.setPipeline(this._pipeline);
+    pass.setBindGroup(0, this._bindGroup);
+    pass.dispatchWorkgroups(...this._workgroups);
 
     pass.end();
   }
 }
 
-export class RawCopyCommand extends Command {
-  source: GPUBuffer;
-  destination: GPUBuffer;
+/**
+ * A CopyCommand copies data from one GPU buffer to another.
+ */
+export class CopyCommand extends Command {
+  private _source: GPUBuffer;
+  private _destination: GPUBuffer;
 
   constructor(source: GPUBuffer, destination: GPUBuffer) {
     super();
 
-    this.source = source;
-    this.destination = destination;
+    this._source = source;
+    this._destination = destination;
   }
 
   execute(encoder: GPUCommandEncoder) {
     encoder.copyBufferToBuffer(
-      this.source,
+      this._source,
       0,
-      this.destination,
+      this._destination,
       0,
-      this.source.size
+      this._source.size
     );
   }
 }

@@ -1,6 +1,6 @@
 import {gemm} from './gemm';
 import {Tensor} from '../tensor';
-import {TensorBuffer} from '../tensorBuffer';
+import {DeviceTensor} from '../deviceTensor';
 import {parameters, RootParameters} from './parameters';
 
 export interface LinearParameters extends RootParameters {
@@ -9,9 +9,9 @@ export interface LinearParameters extends RootParameters {
 }
 
 export function linear(
-  input: TensorBuffer,
+  input: DeviceTensor,
   params: LinearParameters
-): TensorBuffer {
+): DeviceTensor {
   const {weights, bias} = parameters(params);
 
   const output = gemm(input, weights, bias);

@@ -5,15 +5,17 @@ import {Op} from '../op';
 /**
  * A GEneralized Linear Unit (GELU) activation over the input.
  */
-export function gelu(x: DeviceTensor): DeviceTensor {
-  const output = new DeviceTensor(x.shape);
+export function gelu(input: DeviceTensor): DeviceTensor {
+  const shape = input.shape;
+
+  const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
-    inputs: [x],
+    inputs: [input],
     outputs: [output],
     workgroups: [
-      Math.ceil(x.shape.rows / 16),
-      Math.ceil(x.shape.cols / 16),
-      x.shape.batches,
+      Math.ceil(shape.rows / 16),
+      Math.ceil(shape.cols / 16),
+      shape.batches,
     ],
     code: /* wgsl */ `
       ${Tensor.WGSL}

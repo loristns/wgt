@@ -27,23 +27,44 @@ export class DeviceTensor {
   sourceOp?: Op;
 
   /**
+   * List of all DeviceTensor that are needed to compute this DeviceTensor.
+   */
+  private get _dependencies(): DeviceTensor[] {
+    const sourceTensors = new Set<DeviceTensor>();
+    const queue: DeviceTensor[] = [this];
+
+    while (queue.length > 0) {
+      const deviceTensor = queue.shift()!;
+
+      if (sourceTensors.has(deviceTensor)) {
+        continue;
+      }
+      sourceTensors.add(deviceTensor);
+      queue.push(...(deviceTensor.sourceOp?.inputs ?? []));
+    }
+
+    return Array.from(sourceTensors).reverse();
+  }
+
+  /**
    * List of all commands needed to compute (and read) this DeviceTensor.
    */
   get sourceCommands(): Command[] {
-    const commands: Command[] = [];
+    const commands = new Set<Command>();
 
-    if (this.sourceOp != null) {
-      commands.push(
-        ...this.sourceOp.inputs.flatMap(input => input.sourceCommands),
-        this.sourceOp
-      );
-    }
+    this._dependencies.forEach(deviceTensor => {
+      if (deviceTensor.sourceOp != null) {
+        commands.add(deviceTensor.sourceOp);
+      }
 
-    if (this.isReadable) {
-      commands.push(new CopyCommand(this._buffer, this._readableBuffer!));
-    }
+      if (deviceTensor.isReadable) {
+        commands.add(
+          new CopyCommand(deviceTensor._buffer, deviceTensor._readableBuffer!)
+        );
+      }
+    });
 
-    return commands;
+    return Array.from(commands);
   }
 
   constructor(shape: ShapeLike) {
@@ -110,12 +131,14 @@ export class DeviceTensor {
     WGT.device.queue.writeBuffer(this._buffer, 0, tensor.arrayBuffer);
   }
 
-  destroy(recursive = false) {
+  destroy(destroyDependencies = false) {
     this._buffer.destroy();
     this._readableBuffer?.destroy();
 
-    if (recursive && this.sourceOp != null) {
-      this.sourceOp.inputs.forEach(output => output.destroy(recursive));
+    if (destroyDependencies) {
+      this._dependencies.forEach(sourceTensor => {
+        sourceTensor.destroy();
+      });
     }
   }
 }

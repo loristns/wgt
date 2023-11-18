@@ -8,7 +8,7 @@ async function run() {
 
   const INPUT_LENGTH = 8;
   const HIDDEN_SIZE = 1024;
-  const ATTENTION_HEADS = 2;
+  const ATTENTION_HEADS = 16;
 
   const blockParams: Gpt2BlockParameters = {
     layerNorm1: {
@@ -88,8 +88,21 @@ async function run() {
   const input1 = input({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 
   const block1 = gpt2Block(input1, blockParams);
+  const block2 = gpt2Block(block1, blockParams);
+  const block3 = gpt2Block(block2, blockParams);
+  const block4 = gpt2Block(block3, blockParams);
+  const block5 = gpt2Block(block4, blockParams);
+  const block6 = gpt2Block(block5, blockParams);
+  const block7 = gpt2Block(block6, blockParams);
+  const block8 = gpt2Block(block7, blockParams);
+  const block9 = gpt2Block(block8, blockParams);
+  const block10 = gpt2Block(block9, blockParams);
+  const block11 = gpt2Block(block10, blockParams);
+  const block12 = gpt2Block(block11, blockParams);
 
-  const graph = new WGT([input1], [input1, block1]);
+  console.time('compile');
+  const graph = new WGT([input1], [block12]);
+  console.timeEnd('compile');
 
   const a = Tensor.random({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 

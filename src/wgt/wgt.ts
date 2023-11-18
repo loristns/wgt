@@ -44,19 +44,15 @@ export class WGT {
     });
 
     // Get all needed commands.
-    let commands = this.outputs
-      .flatMap(output => output.sourceCommands)
-      .filter((command): command is Command => command != null);
+    const commands = new Set<Command>(); // Use a Set to avoid duplicates.
 
-    // Filter out duplicate commands.
-    commands = commands.filter((command, index) => {
-      const firstCommandIndex = commands.findIndex(
-        otherCommand => otherCommand === command
-      );
-      return index === firstCommandIndex;
+    this.outputs.forEach(output => {
+      output.sourceCommands.forEach(command => {
+        commands.add(command);
+      });
     });
 
-    this._commands = commands;
+    this._commands = Array.from(commands);
   }
 
   /**

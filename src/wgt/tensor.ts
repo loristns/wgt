@@ -147,7 +147,7 @@ export class Tensor {
     return new Tensor(arrayBuffer);
   }
 
-  static random(shapeLike: ShapeLike): Tensor {
+  static random(shapeLike: ShapeLike, avg = 0, std = 0.1): Tensor {
     const shape = Shape.from(shapeLike);
 
     const arrayBuffer = new ArrayBuffer(shape.size);
@@ -157,7 +157,7 @@ export class Tensor {
     rawShape.set([shape.batches, shape.rows, shape.cols]);
 
     for (let i = 0; i < rawTensor.length; i++) {
-      rawTensor[i] = Math.random() * 2 - 1;
+      rawTensor[i] = Math.random() * 2 * std - std + avg;
     }
 
     return new Tensor(arrayBuffer);

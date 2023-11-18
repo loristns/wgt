@@ -1,38 +1,97 @@
 import {WGT} from './wgt/wgt';
 import {Tensor} from './wgt/tensor';
 import {input} from './wgt/ops/input';
-import {LinearParameters} from './wgt/ops/linear';
-import {selfAttention, SelfAttentionParameters} from './wgt/ops/selfAttention';
-import {merge, MergeMethod} from './wgt/ops/merge';
+import {gpt2Block, Gpt2BlockParameters} from './wgt/ops/gpt2/gpt2Block';
 
 async function run() {
   await WGT.initializeGpu();
 
-  const linear1Params: LinearParameters = {
-    weights: Tensor.random({batches: 120, rows: 10, cols: 1024}),
-    bias: Tensor.zeros({batches: 120, rows: 1, cols: 1024}),
+  const INPUT_LENGTH = 8;
+  const HIDDEN_SIZE = 1024;
+  const ATTENTION_HEADS = 2;
+
+  const blockParams: Gpt2BlockParameters = {
+    layerNorm1: {
+      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+    },
+    selfAttention: {
+      query: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      key: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      value: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      projection: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: ATTENTION_HEADS * HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      },
+    },
+    layerNorm2: {
+      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+    },
+    feedForward: {
+      linear1: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: HIDDEN_SIZE,
+          cols: 4 * HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: 4 * HIDDEN_SIZE}),
+      },
+      linear2: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: 4 * HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      },
+    },
   };
 
-  const linear2Params: LinearParameters = {
-    weights: Tensor.random({batches: 1, rows: 1024, cols: 12}),
-    bias: Tensor.zeros({batches: 1, rows: 1, cols: 12}),
-  };
+  const input1 = input({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 
-  const attentionParams: SelfAttentionParameters = {
-    query: linear1Params,
-    key: linear1Params,
-    value: linear1Params,
-    projection: linear2Params,
-  };
+  const block1 = gpt2Block(input1, blockParams);
 
-  const input1 = input({batches: 1, rows: 8, cols: 10});
-  const att = selfAttention(input1, attentionParams);
+  const graph = new WGT([input1], [input1, block1]);
 
-  const merged = merge(att, att, MergeMethod.Div);
-
-  const graph = new WGT([input1], [att, merged]);
-
-  const a = Tensor.random({batches: 1, rows: 8, cols: 10});
+  const a = Tensor.random({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 
   console.time('run');
   console.log(await graph.run([a]));

@@ -1,7 +1,6 @@
-import {Shape, ShapeLike} from '../tensor';
+import {ShapeLike} from '../tensor';
 import {DeviceTensor} from '../deviceTensor';
 
-export function input(shapeLike: ShapeLike): DeviceTensor {
-  const shape = Shape.from(shapeLike);
+export function input(shape: ShapeLike): DeviceTensor {
   return new DeviceTensor(shape);
 }

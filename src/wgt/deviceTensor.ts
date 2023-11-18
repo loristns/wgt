@@ -1,5 +1,5 @@
 import {WGT} from './wgt';
-import {Shape, Tensor} from './tensor';
+import {Shape, ShapeLike, Tensor} from './tensor';
 import {Command, CopyCommand} from './commands';
 import {Op} from './op';
 
@@ -46,11 +46,11 @@ export class DeviceTensor {
     return commands;
   }
 
-  constructor(shape: Shape) {
-    this.shape = shape;
+  constructor(shape: ShapeLike) {
+    this.shape = Shape.from(shape);
 
     this._buffer = WGT.device.createBuffer({
-      size: shape.size,
+      size: this.shape.size,
       usage:
         GPUBufferUsage.STORAGE |
         GPUBufferUsage.COPY_SRC |

@@ -1,72 +1,103 @@
-import {WGT} from './lib';
-import {Tensor} from './lib/tensor';
-import {Input, SelfAttention} from './lib/ops';
+import {WGT} from './wgt/wgt';
+import {Tensor} from './wgt/tensor';
+import {input} from './wgt/ops/input';
+import {gpt2Block, Gpt2BlockParameters} from './wgt/ops/gpt2/gpt2Block';
 
 async function run() {
   await WGT.initializeGpu();
 
-  // Compute graph
-  const input = new Input(1, 32, 1024);
+  const INPUT_LENGTH = 8;
+  const HIDDEN_SIZE = 1024;
+  const ATTENTION_HEADS = 2;
 
-  const queryWeights = new Input(10, 1024, 512);
-  const queryBias = new Input(10, 1, 512);
+  const blockParams: Gpt2BlockParameters = {
+    layerNorm1: {
+      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+    },
+    selfAttention: {
+      query: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      key: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      value: {
+        weights: Tensor.random({
+          batches: ATTENTION_HEADS,
+          rows: HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({
+          batches: ATTENTION_HEADS,
+          rows: 1,
+          cols: HIDDEN_SIZE,
+        }),
+      },
+      projection: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: ATTENTION_HEADS * HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      },
+    },
+    layerNorm2: {
+      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+    },
+    feedForward: {
+      linear1: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: HIDDEN_SIZE,
+          cols: 4 * HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: 4 * HIDDEN_SIZE}),
+      },
+      linear2: {
+        weights: Tensor.random({
+          batches: 1,
+          rows: 4 * HIDDEN_SIZE,
+          cols: HIDDEN_SIZE,
+        }),
+        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+      },
+    },
+  };
 
-  const keyWeights = new Input(10, 1024, 512);
-  const keyBias = new Input(10, 1, 512);
+  const input1 = input({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 
-  const valueWeights = new Input(10, 1024, 512);
-  const valueBias = new Input(10, 1, 512);
+  const block1 = gpt2Block(input1, blockParams);
 
-  const projWeights = new Input(1, 10 * 512, 1024);
-  const projBias = new Input(1, 1, 1024);
+  const graph = new WGT([input1], [input1, block1]);
 
-  const attention = new SelfAttention(
-    input,
-    queryWeights,
-    queryBias,
-    keyWeights,
-    keyBias,
-    valueWeights,
-    valueBias,
-    projWeights,
-    projBias
-  );
+  const a = Tensor.random({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
 
-  // Input data
-  const inputTensor = Tensor.fromShape(input.shape, 1);
+  console.time('run');
+  console.log(await graph.run([a]));
+  console.timeEnd('run');
 
-  const qw = Tensor.fromShape(queryWeights.shape, 'random');
-  const qb = Tensor.fromShape(queryBias.shape, 'random');
-
-  const kw = Tensor.fromShape(keyWeights.shape, 'random');
-  const kb = Tensor.fromShape(keyBias.shape, 'random');
-
-  const vw = Tensor.fromShape(valueWeights.shape, 'random');
-  const vb = Tensor.fromShape(valueBias.shape, 'random');
-
-  const pw = Tensor.fromShape(projWeights.shape, 'random');
-  const pb = Tensor.fromShape(projBias.shape, 'random');
-
-  input.write(inputTensor);
-  queryWeights.write(qw);
-  queryBias.write(qb);
-  keyWeights.write(kw);
-  keyBias.write(kb);
-  valueWeights.write(vw);
-  valueBias.write(vb);
-  projWeights.write(pw);
-  projBias.write(pb);
-
-  console.time('attention');
-  const [output] = await WGT.run([attention]);
-  console.timeEnd('attention');
-
-  console.log(output.data);
-  console.log(output.shape);
-  console.log(output.rawData);
-
-  // Cleanup
-  WGT.destroy([attention]);
+  graph.destroy();
 }
 
 function App() {

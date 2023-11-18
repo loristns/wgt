@@ -3,6 +3,7 @@ import {Tensor} from './wgt/tensor';
 import {input} from './wgt/ops/input';
 import {LinearParameters} from './wgt/ops/linear';
 import {selfAttention, SelfAttentionParameters} from './wgt/ops/selfAttention';
+import {merge, MergeMethod} from './wgt/ops/merge';
 
 async function run() {
   await WGT.initializeGpu();
@@ -26,7 +27,10 @@ async function run() {
 
   const input1 = input({batches: 1, rows: 8, cols: 10});
   const att = selfAttention(input1, attentionParams);
-  const graph = new WGT([input1], [att]);
+
+  const merged = merge(att, att, MergeMethod.Div);
+
+  const graph = new WGT([input1], [att, merged]);
 
   const a = Tensor.random({batches: 1, rows: 8, cols: 10});
 

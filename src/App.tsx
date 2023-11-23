@@ -2,10 +2,12 @@ import {WGT} from './wgt/wgt';
 import {Tensor} from './wgt/tensor';
 import {input} from './wgt/ops/input';
 import {gpt2Block, Gpt2BlockParameters} from './wgt/ops/gpt2/gpt2Block';
+import {TensorUtils} from './wgt/tensorUtils';
 
 async function run() {
   await WGT.initializeGpu();
 
+  const VOCAB_SIZE = 10000;
   const INPUT_LENGTH = 8;
   const HIDDEN_SIZE = 1024;
   const ATTENTION_HEADS = 16;
@@ -104,10 +106,19 @@ async function run() {
   const graph = new WGT([input1], [block12]);
   console.timeEnd('compile');
 
-  const a = Tensor.random({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
+  console.log(graph.getRecipe());
+  console.log(graph.getDotTree());
+
+  const embeddings = Tensor.random({
+    batches: 1,
+    rows: VOCAB_SIZE,
+    cols: HIDDEN_SIZE,
+  });
+  const i = TensorUtils.getEmbeddings([0, 0, 2, 3, 4, 5, 6, 7], embeddings);
+  console.log(i);
 
   console.time('run');
-  console.log(await graph.run([a]));
+  console.log(await graph.run([i]));
   console.timeEnd('run');
 
   graph.destroy();

@@ -1,12 +1,13 @@
 import {Shape, Tensor} from '../tensor';
 import {DeviceTensor} from '../deviceTensor';
 import {Op} from '../op';
-import {Parameters} from './parameters';
+import {parameters, Parameters} from './parameters';
 
 import {linear, LinearParameters} from './linear';
 import {softmax} from './softmax';
 import {transpose} from './transpose';
 import {gemm} from './gemm';
+import { merge, MergeMethod } from './merge';
 
 export interface SelfAttentionParameters extends Parameters {
   query: LinearParameters;
@@ -28,17 +29,25 @@ export function selfAttention(
   const value = linear(input, params.value);
 
   // 2. Compute attention matrix.
-  const attention = gemm(query, transpose(key));
+  const keyT = transpose(key);
+  const attention = gemm(query, keyT);
+
+  // Scale attention matrix
+  const {scale} = parameters({
+    scale: Tensor.fromArray([1 / Math.sqrt(query.shape.cols)]),
+  });
+  const attentionScaled = merge(attention, scale, MergeMethod.Mul);
 
   // Mask out the upper triangle of the attention matrix (decoder)
-  const attentionMasked = new DeviceTensor(attention.shape);
+  const attentionMasked = new DeviceTensor(attentionScaled.shape);
   attentionMasked.sourceOp = new Op({
-    inputs: [attention],
+    label: 'attentionMask',
+    inputs: [attentionScaled],
     outputs: [attentionMasked],
     workgroups: [
-      Math.ceil(attention.shape.rows / 16),
-      Math.ceil(attention.shape.cols / 16),
-      attention.shape.batches,
+      Math.ceil(attentionScaled.shape.rows / 16),
+      Math.ceil(attentionScaled.shape.cols / 16),
+      attentionScaled.shape.batches,
     ],
     code: /* wgsl */ `
       ${Tensor.WGSL}
@@ -83,6 +92,7 @@ export function selfAttention(
     attentionValueFlattenedShape
   );
   attentionValueFlattened.sourceOp = new Op({
+    label: 'attentionFlatten',
     inputs: [attentionValue],
     outputs: [attentionValueFlattened],
     workgroups: [

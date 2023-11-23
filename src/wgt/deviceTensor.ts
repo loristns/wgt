@@ -27,23 +27,39 @@ export class DeviceTensor {
   sourceOp?: Op;
 
   /**
-   * List of all DeviceTensor that are needed to compute this DeviceTensor.
+   * Ordered list of all DeviceTensor that are needed to compute this DeviceTensor.
    */
   private get _dependencies(): DeviceTensor[] {
-    const sourceTensors = new Set<DeviceTensor>();
-    const queue: DeviceTensor[] = [this];
+    const dependencies = new Set<DeviceTensor>();
+    const stack: DeviceTensor[] = [this];
 
-    while (queue.length > 0) {
-      const deviceTensor = queue.shift()!;
-
-      if (sourceTensors.has(deviceTensor)) {
+    // Depth-first search to find all dependencies.
+    while (stack.length > 0) {
+      const deviceTensor = stack.pop()!;
+      if (dependencies.has(deviceTensor)) {
         continue;
       }
-      sourceTensors.add(deviceTensor);
-      queue.push(...(deviceTensor.sourceOp?.inputs ?? []));
+
+      const parents = deviceTensor.sourceOp?.inputs ?? [];
+      const unvisitedParents = parents.filter(
+        input => !dependencies.has(input)
+      );
+
+      // If there are unvisited parents, push them to the stack
+      // and visit them first before visiting this DeviceTensor again.
+      if (unvisitedParents.length > 0) {
+        stack.push(deviceTensor);
+        unvisitedParents.forEach(input => {
+          stack.push(input);
+        });
+        continue;
+      }
+
+      // If all parents were visited before, add this DeviceTensor to the dependencies.
+      dependencies.add(deviceTensor);
     }
 
-    return Array.from(sourceTensors).reverse();
+    return Array.from(dependencies);
   }
 
   /**
@@ -56,13 +72,11 @@ export class DeviceTensor {
       if (deviceTensor.sourceOp != null) {
         commands.add(deviceTensor.sourceOp);
       }
-
-      if (deviceTensor.isReadable) {
-        commands.add(
-          new CopyCommand(deviceTensor._buffer, deviceTensor._readableBuffer!)
-        );
-      }
     });
+
+    if (this.isReadable) {
+      commands.add(new CopyCommand(this._buffer, this._readableBuffer!));
+    }
 
     return Array.from(commands);
   }

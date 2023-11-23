@@ -12,6 +12,7 @@ import {Op} from './op';
  */
 export class DeviceTensor {
   readonly shape: Shape;
+  readonly uuid = Math.random().toString(36).substring(7);
 
   private _buffer: GPUBuffer;
   private _readableBuffer?: GPUBuffer;

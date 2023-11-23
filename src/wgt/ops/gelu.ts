@@ -10,6 +10,7 @@ export function gelu(input: DeviceTensor): DeviceTensor {
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: 'gelu',
     inputs: [input],
     outputs: [output],
     workgroups: [

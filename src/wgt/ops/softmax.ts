@@ -17,6 +17,7 @@ export function softmax(input: DeviceTensor): DeviceTensor {
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: 'softmax',
     inputs: [input],
     outputs: [output],
     workgroups: [Math.ceil(shape.rows / 256), shape.batches],

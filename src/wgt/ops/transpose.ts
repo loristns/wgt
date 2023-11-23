@@ -14,6 +14,7 @@ export function transpose(input: DeviceTensor): DeviceTensor {
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: 'transpose',
     inputs: [input],
     outputs: [output],
     workgroups: [

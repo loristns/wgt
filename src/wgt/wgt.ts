@@ -1,6 +1,7 @@
 import {Command} from './commands';
 import {Tensor} from './tensor';
 import {DeviceTensor} from './deviceTensor';
+import {Op} from './op';
 
 /**
  * The WGT class is the main class of the WGT library.
@@ -89,5 +90,55 @@ export class WGT {
    */
   destroy() {
     this.outputs.forEach(output => output.destroy(true));
+  }
+
+  getRecipe() {
+    return this._commands
+      .filter(command => command instanceof Op)
+      .map(command => (command as Op).label);
+  }
+
+  getDotTree() {
+    const nodes = new Set<string>();
+    const edges = new Set<string>();
+
+    this._commands
+      .filter(command => command instanceof Op)
+      .forEach(command => {
+        const op = command as Op;
+
+        nodes.add(
+          `"${op.outputs[0].uuid}" [label="${
+            op.label
+          }" style=filled fillcolor=${
+            this.outputs.includes(op.outputs[0]) ? 'green' : 'white'
+          }]`
+        );
+
+        op.inputs
+          //.filter(input => input.sourceOp != null)
+          .forEach(input => {
+            if (input.sourceOp == null) {
+              nodes.add(
+                `"${input.uuid}" [label="input (${
+                  input.shape
+                })" shape=box style=filled fillcolor=${
+                  this.inputs.includes(input) ? 'red' : 'gray'
+                }]`
+              );
+              edges.add(`"${input.uuid}" -> "${op.outputs[0].uuid}"`);
+              return;
+            }
+
+            edges.add(
+              `"${input.sourceOp.outputs[0].uuid}" -> "${op.outputs[0].uuid}"`
+            );
+          });
+      });
+
+    return `digraph {
+      ${Array.from(nodes).join('\n      ')}
+      ${Array.from(edges).join('\n      ')}
+    }`;
   }
 }

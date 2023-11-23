@@ -3,12 +3,12 @@ import {DeviceTensor} from '../deviceTensor';
 import {Op} from '../op';
 
 export enum MergeMethod {
-  Add,
-  Sub,
-  Mul,
-  Div,
-  Min,
-  Max,
+  Add = 'add',
+  Sub = 'sub',
+  Mul = 'mul',
+  Div = 'div',
+  Min = 'min',
+  Max = 'max',
 }
 
 /**
@@ -23,6 +23,7 @@ export function merge(
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: `merge (${method})`,
     inputs: [a, b],
     outputs: [output],
     workgroups: [

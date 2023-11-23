@@ -17,6 +17,7 @@ export function layerNorm(
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: 'layerNorm',
     inputs: [input, scale, bias],
     outputs: [output],
     workgroups: [

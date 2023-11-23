@@ -18,6 +18,7 @@ export function gemm(
 
   const output = new DeviceTensor(shape);
   output.sourceOp = new Op({
+    label: 'gemm',
     inputs: [a, b, ...(c != null ? [c] : [])],
     outputs: [output],
     workgroups: [

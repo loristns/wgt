@@ -1,8 +1,8 @@
-import {DeviceTensor} from '../../deviceTensor';
+import {DeviceTensor} from '../../wgt/deviceTensor';
 
-import {Parameters} from '../parameters';
-import {linear, LinearParameters} from '../linear';
-import {gelu} from '../gelu';
+import {Parameters} from '../../wgt/ops/parameters';
+import {linear, LinearParameters} from '../../wgt/ops/linear';
+import {gelu} from '../../wgt/ops/gelu';
 
 export interface FeedForwardParameters extends Parameters {
   linear1: LinearParameters;

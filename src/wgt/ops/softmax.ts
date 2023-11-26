@@ -39,7 +39,8 @@ export function softmax(input: DeviceTensor): DeviceTensor {
         let row = id.x;
     
         // Get the max value in the row (across all columns)
-          var rowMax: f32 = 0.0;
+        var rowMax: f32 = -0x1p+127f;
+
         for (var col = 0u; col < input.shape.cols; col += 1u) {
           rowMax = max(rowMax, input.tensor[tensor_idx(input.shape, batch, row, col)]);
         }

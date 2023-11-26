@@ -37,6 +37,16 @@ export function gelu(input: DeviceTensor): DeviceTensor {
         let col = id.y;
 
         let value = input.tensor[tensor_idx(input.shape, batch, row, col)];
+
+        if (value <= -10.0) {
+          result.tensor[tensor_idx(result.shape, batch, row, col)] = 0.0;
+          return;
+        }
+
+        if (value >= 10.0) {
+          result.tensor[tensor_idx(result.shape, batch, row, col)] = value;
+          return;
+        }
       
         result.tensor[tensor_idx(result.shape, batch, row, col)] = \
           0.5 * value * (1 + tanh(0.797884 * (value + 0.044715 * pow(value, 3.0))));

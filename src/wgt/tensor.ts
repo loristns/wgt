@@ -147,6 +147,13 @@ export class Tensor {
     return new Tensor(arrayBuffer);
   }
 
+  static fromURL(url: string): Promise<Tensor> {
+    return fetch(url)
+      .then(response => response.blob())
+      .then(blob => blob.arrayBuffer())
+      .then(arrayBuffer => new Tensor(arrayBuffer));
+  }
+
   static random(shapeLike: ShapeLike, avg = 0, std = 0.1): Tensor {
     const shape = Shape.from(shapeLike);
 

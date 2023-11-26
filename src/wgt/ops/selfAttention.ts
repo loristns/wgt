@@ -7,7 +7,7 @@ import {linear, LinearParameters} from './linear';
 import {softmax} from './softmax';
 import {transpose} from './transpose';
 import {gemm} from './gemm';
-import { merge, MergeMethod } from './merge';
+import {merge, MergeMethod} from './merge';
 
 export interface SelfAttentionParameters extends Parameters {
   query: LinearParameters;

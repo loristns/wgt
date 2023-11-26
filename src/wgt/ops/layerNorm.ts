@@ -62,7 +62,7 @@ export function layerNorm(
         variance /= f32(input.shape.cols);
 
         result.tensor[tensor_idx(result.shape, batch, row, col)] = \
-          ((value - mean) / sqrt(variance + 0.00001)) * scaleValue + biasValue;
+          scaleValue * (value - mean) / sqrt(variance + 0.00001) + biasValue;
       }
     `,
   });

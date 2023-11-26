@@ -1,9 +1,12 @@
-import {DeviceTensor} from '../../deviceTensor';
+import {DeviceTensor} from '../../wgt/deviceTensor';
 
-import {Parameters} from '../parameters';
-import {selfAttention, SelfAttentionParameters} from '../selfAttention';
-import {layerNorm, LayerNormParameters} from '../layerNorm';
-import {merge, MergeMethod} from '../merge';
+import {Parameters} from '../../wgt/ops/parameters';
+import {
+  selfAttention,
+  SelfAttentionParameters,
+} from '../../wgt/ops/selfAttention';
+import {layerNorm, LayerNormParameters} from '../../wgt/ops/layerNorm';
+import {merge, MergeMethod} from '../../wgt/ops/merge';
 
 import {feedForward, FeedForwardParameters} from './feedForward';
 

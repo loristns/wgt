@@ -1,134 +1,222 @@
+import {useEffect, useState} from 'react';
+
 import {WGT} from './wgt/wgt';
 import {Tensor} from './wgt/tensor';
 import {input} from './wgt/ops/input';
-import {gpt2Block, Gpt2BlockParameters} from './wgt/ops/gpt2/gpt2Block';
-import {TensorUtils} from './wgt/tensorUtils';
 
-async function run() {
+import {gpt2, Gpt2Parameters} from './gpt2/ops/gpt2';
+import {Gpt2BlockParameters} from './gpt2/ops/gpt2Block';
+
+import vocab from './gpt2/vocab.json';
+import {Tokenizer} from './gpt2/tokenizer';
+
+async function init() {
   await WGT.initializeGpu();
 
-  const VOCAB_SIZE = 10000;
-  const INPUT_LENGTH = 8;
-  const HIDDEN_SIZE = 1024;
-  const ATTENTION_HEADS = 16;
+  const tokenizer = new Tokenizer(vocab);
 
-  const blockParams: Gpt2BlockParameters = {
-    layerNorm1: {
-      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
-      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+  const blocks: Gpt2BlockParameters[] = [];
+  for (let blockId = 0; blockId < 12; blockId++) {
+    blocks.push({
+      layerNorm1: {
+        scale: await Tensor.fromURL(
+          `/gpt2_weights/block${blockId}.ln1.scale.bin`
+        ),
+        bias: await Tensor.fromURL(
+          `/gpt2_weights/block${blockId}.ln1.bias.bin`
+        ),
+      },
+      selfAttention: {
+        query: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.query.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.query.bias.bin`
+          ),
+        },
+        key: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.key.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.key.bias.bin`
+          ),
+        },
+        value: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.value.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.value.bias.bin`
+          ),
+        },
+        projection: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.proj.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.attention.proj.bias.bin`
+          ),
+        },
+      },
+      layerNorm2: {
+        scale: await Tensor.fromURL(
+          `/gpt2_weights/block${blockId}.ln2.scale.bin`
+        ),
+        bias: await Tensor.fromURL(
+          `/gpt2_weights/block${blockId}.ln2.bias.bin`
+        ),
+      },
+      feedForward: {
+        linear1: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.ff.linear1.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.ff.linear1.bias.bin`
+          ),
+        },
+        linear2: {
+          weights: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.ff.linear2.weights.bin`
+          ),
+          bias: await Tensor.fromURL(
+            `/gpt2_weights/block${blockId}.ff.linear2.bias.bin`
+          ),
+        },
+      },
+    });
+  }
+
+  const params: Gpt2Parameters = {
+    tokenEmbeddings: {
+      chunk1: await Tensor.fromURL('/gpt2_weights/embeddings.chunk1.bin'),
+      chunk2: await Tensor.fromURL('/gpt2_weights/embeddings.chunk2.bin'),
     },
-    selfAttention: {
-      query: {
-        weights: Tensor.random({
-          batches: ATTENTION_HEADS,
-          rows: HIDDEN_SIZE,
-          cols: HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({
-          batches: ATTENTION_HEADS,
-          rows: 1,
-          cols: HIDDEN_SIZE,
-        }),
-      },
-      key: {
-        weights: Tensor.random({
-          batches: ATTENTION_HEADS,
-          rows: HIDDEN_SIZE,
-          cols: HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({
-          batches: ATTENTION_HEADS,
-          rows: 1,
-          cols: HIDDEN_SIZE,
-        }),
-      },
-      value: {
-        weights: Tensor.random({
-          batches: ATTENTION_HEADS,
-          rows: HIDDEN_SIZE,
-          cols: HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({
-          batches: ATTENTION_HEADS,
-          rows: 1,
-          cols: HIDDEN_SIZE,
-        }),
-      },
-      projection: {
-        weights: Tensor.random({
-          batches: 1,
-          rows: ATTENTION_HEADS * HIDDEN_SIZE,
-          cols: HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
-      },
+    positionEmbeddings: {
+      chunk1: await Tensor.fromURL(
+        '/gpt2_weights/position_embeddings.chunk1.bin'
+      ),
+      chunk2: await Tensor.fromURL(
+        '/gpt2_weights/position_embeddings.chunk2.bin'
+      ),
     },
-    layerNorm2: {
-      scale: Tensor.random({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
-      bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
+    layerNorm: {
+      scale: await Tensor.fromURL('/gpt2_weights/ln_final.scale.bin'),
+      bias: await Tensor.fromURL('/gpt2_weights/ln_final.bias.bin'),
     },
-    feedForward: {
-      linear1: {
-        weights: Tensor.random({
-          batches: 1,
-          rows: HIDDEN_SIZE,
-          cols: 4 * HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({batches: 1, rows: 1, cols: 4 * HIDDEN_SIZE}),
-      },
-      linear2: {
-        weights: Tensor.random({
-          batches: 1,
-          rows: 4 * HIDDEN_SIZE,
-          cols: HIDDEN_SIZE,
-        }),
-        bias: Tensor.zeros({batches: 1, rows: 1, cols: HIDDEN_SIZE}),
-      },
-    },
+    blocks,
   };
 
-  const input1 = input({batches: 1, rows: INPUT_LENGTH, cols: HIDDEN_SIZE});
+  console.log('params', params);
 
-  const block1 = gpt2Block(input1, blockParams);
-  const block2 = gpt2Block(block1, blockParams);
-  const block3 = gpt2Block(block2, blockParams);
-  const block4 = gpt2Block(block3, blockParams);
-  const block5 = gpt2Block(block4, blockParams);
-  const block6 = gpt2Block(block5, blockParams);
-  const block7 = gpt2Block(block6, blockParams);
-  const block8 = gpt2Block(block7, blockParams);
-  const block9 = gpt2Block(block8, blockParams);
-  const block10 = gpt2Block(block9, blockParams);
-  const block11 = gpt2Block(block10, blockParams);
-  const block12 = gpt2Block(block11, blockParams);
+  return {tokenizer, params};
+}
+
+async function run(tokens: number[], params: Gpt2Parameters) {
+  const input1 = input({
+    batches: 1,
+    rows: 1,
+    cols: tokens.length,
+  });
+  const gpt = gpt2(input1, params);
 
   console.time('compile');
-  const graph = new WGT([input1], [block12]);
+  const graph = new WGT([input1], [gpt]);
   console.timeEnd('compile');
 
-  console.log(graph.getRecipe());
-  console.log(graph.getDotTree());
-
-  const embeddings = Tensor.random({
-    batches: 1,
-    rows: VOCAB_SIZE,
-    cols: HIDDEN_SIZE,
-  });
-  const i = TensorUtils.getEmbeddings([0, 0, 2, 3, 4, 5, 6, 7], embeddings);
-  console.log(i);
-
   console.time('run');
-  console.log(await graph.run([i]));
+
+  const [pred] = await graph.run([Tensor.fromArray(tokens)]);
+
+  const nextTokens = pred.array[0].map(row => {
+    const max = Math.max(...row);
+    return row.indexOf(max);
+  });
+  const nextToken = nextTokens[nextTokens.length - 1];
+
   console.timeEnd('run');
 
+  console.log('next token:', nextTokens);
+  console.log(pred);
+
+  // console.log(graph.getDotTree());
+
   graph.destroy();
+
+  return nextToken;
 }
 
 function App() {
+  const [loaded, setLoaded] = useState(false);
+  const [params, setParams] = useState<Gpt2Parameters | null>(null);
+  const [tokenizer, setTokenizer] = useState<Tokenizer | null>(null);
+
+  const [text, setText] = useState('');
+  const [predTokens, setPredTokens] = useState<number[]>([]);
+
+  useEffect(() => {
+    init().then(({params, tokenizer}) => {
+      setLoaded(true);
+      setParams(params);
+      setTokenizer(tokenizer);
+    });
+  }, []);
+
   return (
     <>
-      <p>Please open the console.</p>
-      <button onClick={() => run()}>Run</button>
+      <h1>WGT</h1>
+
+      <p>
+        <strong>Status: </strong> {loaded ? 'Loaded' : 'Loading...'}
+      </p>
+
+      <hr />
+      <h2>Tokenizer</h2>
+
+      <textarea
+        placeholder="Type something..."
+        value={text}
+        cols={80}
+        rows={10}
+        onChange={e => {
+          setText(e.target.value);
+          setPredTokens(tokenizer?.encode(e.target.value) ?? []);
+        }}
+      />
+
+      <p>
+        <strong>Tokenized: </strong>
+        {tokenizer?.encode(text).join(', ')}
+      </p>
+
+      <hr />
+      <h2>Model</h2>
+
+      <textarea
+        placeholder="The model will predict the next token..."
+        value={tokenizer?.decode(predTokens)}
+        cols={80}
+        rows={10}
+        readOnly
+      />
+
+      <p>
+        <strong>Tokenized: </strong>
+        {predTokens.join(', ')}
+      </p>
+
+      <br />
+
+      <button
+        disabled={!loaded}
+        onClick={async () =>
+          setPredTokens([...predTokens, await run(predTokens, params!)])
+        }
+      >
+        Run
+      </button>
     </>
   );
 }

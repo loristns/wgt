@@ -33,8 +33,8 @@ export function gpt2(
     x = gpt2Block(x, params.blocks[i]);
   }
 
-  const lnF = layerNorm(x, params.layerNorm);
-  const linearF = deEmbed(lnF, params.tokenEmbeddings);
+  x = layerNorm(x, params.layerNorm);
+  x = deEmbed(x, params.tokenEmbeddings);
 
-  return linearF;
+  return x;
 }

@@ -20,7 +20,7 @@ export function softmax(input: DeviceTensor): DeviceTensor {
     label: 'softmax',
     inputs: [input],
     outputs: [output],
-    workgroups: [Math.ceil(shape.rows / 256), shape.batches],
+    workgroups: [Math.ceil(shape.rows / 256), shape.batches, 1],
     code: /* wgsl */ `
       ${Tensor.WGSL}
         
@@ -30,7 +30,7 @@ export function softmax(input: DeviceTensor): DeviceTensor {
       // Output
       @group(0) @binding(1) var<storage, read_write> result: Tensor;
       
-      @compute @workgroup_size(256, 1) fn main(
+      @compute @workgroup_size(256, 1, 1) fn main(
         @builtin(global_invocation_id) id: vec3<u32>,
       ) {
         result.shape = input.shape;
@@ -56,6 +56,8 @@ export function softmax(input: DeviceTensor): DeviceTensor {
           sum += unnormalizedSoftmax;
           result.tensor[tensor_idx(result.shape, batch, row, col)] = unnormalizedSoftmax;
         }
+
+        workgroupBarrier();
 
         // Normalize the softmax values
         for (var col = 0u; col < input.shape.cols; col += 1u) {

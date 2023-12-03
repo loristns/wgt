@@ -62,6 +62,7 @@ export function softmax(input: DeviceTensor): DeviceTensor {
         // Normalize the softmax values
         for (var col = 0u; col < input.shape.cols; col += 1u) {
           result.tensor[tensor_idx(result.shape, batch, row, col)] /= sum;
+          workgroupBarrier();
         }
       }
     `,

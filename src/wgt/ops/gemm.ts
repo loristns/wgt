@@ -47,15 +47,14 @@ export function gemm(
         let row = id.x;
         let col = id.y;
 
-        let shape = Shape(
+        let result_shape = Shape(
           max(a.shape.batches, b.shape.batches),
           a.shape.rows,
           b.shape.cols
         );
-    
-        // Set the shape of the output tensor (only once)
+
         if (id.x == 0u && id.y == 0u && id.z == 0u) {
-          result.shape = shape;
+          result.shape = result_shape;
         }
 
         var value: f32 = 0.0;
@@ -72,7 +71,7 @@ export function gemm(
             : ''
         }
       
-        result.tensor[tensor_idx(shape, batch, row, col)] = value;
+        result.tensor[tensor_idx(result_shape, batch, row, col)] = value;
       }
   `,
   });

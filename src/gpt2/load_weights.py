@@ -52,12 +52,22 @@ with safe_open("model.safetensors", framework="numpy") as model:
                 # Split bias into query, key, value
                 query, key, value = np.split(tensor, 3, axis=-1)
 
+                # Split into 12 heads
+                query = np.concatenate(np.split(query, 12, axis=-1), axis=0)
+                key = np.concatenate(np.split(key, 12, axis=-1), axis=0)
+                value = np.concatenate(np.split(value, 12, axis=-1), axis=0)
+
                 tensors[f"block{block}.attention.query.bias"] = query
                 tensors[f"block{block}.attention.key.bias"] = key
                 tensors[f"block{block}.attention.value.bias"] = value
             elif layer == "attn.c_attn.weight":
                 # Split weight into query, key, value
                 query, key, value = np.split(tensor, 3, axis=-1)
+
+                # Split into 12 heads
+                query = np.concatenate(np.split(query, 12, axis=-1), axis=0)
+                key = np.concatenate(np.split(key, 12, axis=-1), axis=0)
+                value = np.concatenate(np.split(value, 12, axis=-1), axis=0)
 
                 tensors[f"block{block}.attention.query.weights"] = query
                 tensors[f"block{block}.attention.key.weights"] = key

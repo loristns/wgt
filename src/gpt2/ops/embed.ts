@@ -44,20 +44,24 @@ export function embed(
       @compute @workgroup_size(16, 16, 1) fn main(
         @builtin(global_invocation_id) id: vec3<u32>,
       ) {
-        result.shape = Shape(input.shape.batches, input.shape.cols, chunk1.shape.cols);
-
         let batch = id.z;
         let row = id.x;
         let col = id.y;
 
+        let result_shape = Shape(input.shape.batches, input.shape.cols, chunk1.shape.cols);
+
+        if (batch == 0 && row == 0 && col == 0) {
+          result.shape = result_shape;
+        }
+
         let key = u32(input.tensor[tensor_idx(input.shape, batch, 0, row)]);
 
-        if (key < chunk1.shape.cols) {
-          result.tensor[tensor_idx(result.shape, batch, row, col)] = \
+        if (key < chunk1.shape.rows) {
+          result.tensor[tensor_idx(result_shape, batch, row, col)] = \
             chunk1.tensor[tensor_idx(chunk1.shape, 0, key, col)];
         } else {
-          result.tensor[tensor_idx(result.shape, batch, row, col)] = \
-            chunk2.tensor[tensor_idx(chunk2.shape, 0, key - chunk1.shape.cols, col)];
+          result.tensor[tensor_idx(result_shape, batch, row, col)] = \
+            chunk2.tensor[tensor_idx(chunk2.shape, 0, key - chunk1.shape.rows, col)];
         }
       }
     `,

@@ -34,13 +34,16 @@ export function transpose(input: DeviceTensor): DeviceTensor {
       @compute @workgroup_size(16, 16, 1) fn main(
         @builtin(global_invocation_id) id: vec3<u32>,
       ) {
-        result.shape = Shape(input.shape.batches, input.shape.cols, input.shape.rows);
-
         let batch = id.z;
         let row = id.x;
         let col = id.y;
 
-        result.tensor[tensor_idx(result.shape, batch, row, col)] = \
+        let result_shape = Shape(input.shape.batches, input.shape.cols, input.shape.rows);
+        if (id.x == 0u && id.y == 0u && id.z == 0u) {
+          result.shape = result_shape;
+        }
+
+        result.tensor[tensor_idx(result_shape, batch, row, col)] = \
           input.tensor[tensor_idx(input.shape, batch, col, row)];
       }
     `,

@@ -4,7 +4,6 @@ import {DeviceTensor} from '../../wgt/deviceTensor';
 import {parameters, Parameters} from '../../wgt/ops/parameters';
 import {merge, MergeMethod} from '../../wgt/ops/merge';
 import {layerNorm, LayerNormParameters} from '../../wgt/ops/layerNorm';
-import {softmax} from '../../wgt/ops/softmax';
 
 import {gpt2Block, Gpt2BlockParameters} from './gpt2Block';
 import {embed, EmbedParameters} from './embed';
@@ -35,7 +34,7 @@ export function gpt2(
   }
 
   const lnF = layerNorm(x, params.layerNorm);
-  const linearF = softmax(deEmbed(lnF, params.tokenEmbeddings));
+  const linearF = deEmbed(lnF, params.tokenEmbeddings);
 
   return linearF;
 }

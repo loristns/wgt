@@ -34,9 +34,9 @@ export function selfAttention(
 
   // Scale attention matrix
   const {scale} = parameters({
-    scale: Tensor.fromArray([1 / Math.sqrt(query.shape.cols)]),
+    scale: Tensor.fromArray([Math.sqrt(query.shape.cols)]),
   });
-  const attentionScaled = merge(attention, scale, MergeMethod.Mul);
+  const attentionScaled = merge(attention, scale, MergeMethod.Div);
 
   // Mask out the upper triangle of the attention matrix (decoder)
   const attentionMasked = new DeviceTensor(attentionScaled.shape);
@@ -52,29 +52,32 @@ export function selfAttention(
     code: /* wgsl */ `
       ${Tensor.WGSL}
 
-       // Input
-       @group(0) @binding(0) var<storage, read> input: Tensor;
+      // Input
+      @group(0) @binding(0) var<storage, read> input: Tensor;
 
-       // Output
-       @group(0) @binding(1) var<storage, read_write> result: Tensor;
+      // Output
+      @group(0) @binding(1) var<storage, read_write> result: Tensor;
+  
+      @compute @workgroup_size(16, 16, 1) fn main(
+        @builtin(global_invocation_id) id: vec3<u32>
+      ) {
+        result.shape = input.shape;
 
-       @compute @workgroup_size(16, 16, 1) fn main(
-         @builtin(global_invocation_id) id: vec3<u32>,
-       ) {
-         result.shape = input.shape;
+        let batch = id.z;
+        let row = id.x;
+        let col = id.y;
 
-         let batch = id.z;
-         let row = id.x;
-         let col = id.y;
+        var value = input.tensor[tensor_idx(input.shape, batch, row, col)];
 
-         if (row < col) {
-           result.tensor[tensor_idx(result.shape, batch, row, col)] = -0x1p+127f;
-         } else {
-           result.tensor[tensor_idx(result.shape, batch, row, col)] = \
-             input.tensor[tensor_idx(input.shape, batch, row, col)];
-         }
-       }
-      `,
+        // Use min to fix (strange issue?)
+        // TODO: Investigate further
+        if (min(row, result.shape.rows - 1u) < min(col, result.shape.cols - 1u)) {
+          value = -0x1p+127f;
+        }
+
+        result.tensor[tensor_idx(result.shape, batch, row, col)] = value;
+      }
+    `,
   });
 
   // 3. Apply softmax to attention matrix to get attention weights per token
@@ -112,22 +115,26 @@ export function selfAttention(
       @compute @workgroup_size(16, 16, 1) fn main(
         @builtin(global_invocation_id) id: vec3<u32>,
       ) {
-        let shape = Shape(
+        let batch = id.z;
+        let row = id.x;
+        let col = id.y;
+
+        let result_shape = Shape(
           1,
           input.shape.rows,
           input.shape.cols * input.shape.batches
         );
 
-        if (id.x == 0 && id.y == 0 && id.z == 0) {
-          result.shape = shape;
+        if (batch == 0u && row == 0u && col == 0u) {
+          result.shape = result_shape;
         }
 
-        let batch = id.z;
-        let row = id.x;
-        let col = id.y;
+        let input_batch = u32(col / input.shape.cols);
+        let input_col = col % input.shape.cols;
+        let input_row = row;
 
-        result.tensor[tensor_idx(shape, 0, row, input.shape.batches * batch + col)] = \
-          input.tensor[tensor_idx(input.shape, batch, row, col)];
+        result.tensor[tensor_idx(result_shape, batch, row, col)] = \
+          input.tensor[tensor_idx(input.shape, input_batch, input_row, input_col)];
       }
       `,
   });
